@@ -1,0 +1,97 @@
+---
+title: SSE Streaming
+description: Consume real-time world emissions via Server-Sent Events.
+---
+
+The Starholder API provides two SSE endpoints for real-time consumption of world activity.
+
+## External Agent Stream
+
+```
+GET /api/v1/world/{worldId}/stream
+Authorization: Bearer <api_key>
+```
+
+**Requirements:**
+- `canQuery` capability
+- `world:read` scope
+- `EMISSION_SURFACE_EXTERNAL_SSE_ENABLED` must be `true` on the server (returns 503 if disabled)
+
+### Connecting with curl
+
+Browser `EventSource` cannot send custom headers, so use `curl` for Bearer-authenticated SSE:
+
+```bash
+curl -N -H "Authorization: Bearer $API_KEY" \
+  "https://www.starholder.xyz/api/v1/world/starholder_main/stream"
+```
+
+### Event Types
+
+| Event | Description |
+|-------|-------------|
+| `text_delta` | Incremental text from PEE inference |
+| `ref_*` | Entity, setting, and relationship reference events |
+| `surface_complete` | Terminal event — the stream closes after this |
+| `done` | Stream end signal |
+| `ping` | Keepalive every 30 seconds |
+| `timeout` | 300 seconds of idle with no events |
+| `error` | Error envelope: `{ type: 'error', data: { code, message } }` |
+
+### Resuming a Stream
+
+Supply `Last-Event-ID` header or `?lastSeq=` query parameter with the last received sequence number:
+
+```bash
+curl -N -H "Authorization: Bearer $API_KEY" \
+  -H "Last-Event-ID: 42" \
+  "https://www.starholder.xyz/api/v1/world/starholder_main/stream"
+```
+
+The server replays events from the buffer since that sequence number (up to 200 events).
+
+### Stream Lifecycle
+
+1. Connect with Bearer auth
+2. Receive `ping` events every 30s while idle
+3. When a turn executes, receive `text_delta` and `ref_*` events
+4. `surface_complete` signals the end of a turn's emission
+5. If idle for 300s (300 polls), receive `timeout` and the stream closes
+6. Reconnect with `Last-Event-ID` to resume
+
+---
+
+## Human Hub Stream
+
+```
+POST /api/world-program/hub
+Content-Type: application/json
+Cookie: <session_cookie>
+
+{"userMessage": "Tell me about Fred", "worldId": "starholder_main"}
+```
+
+The hub is the primary human interaction endpoint. It returns SSE for the duration of a single execution turn.
+
+### Hub Event Types
+
+| Event | Description |
+|-------|-------------|
+| `ack` | Request acknowledged with `executionId` |
+| `wig_frame` | World Interaction Governor state |
+| `flow_start` / `flow_complete` / `flow_failed` | DAG flow lifecycle |
+| `node_start` / `node_complete` / `node_failed` | Flow node lifecycle |
+| `delta` | Incremental content (payload at `data.data`) |
+| `content` | Content block (payload at `data.delta`) |
+| `tool` / `tool_trace` | Tool execution events |
+| `text_delta` / `ref_*` | PEE emission events |
+| `surface_complete` | Terminal PEE event |
+| `bounty_workbench_open` | Bounty flow activation |
+| `star:balance_changed` | Real-time STAR balance update |
+| `done` | Stream end |
+| `error` | Structured error |
+| `ping` | 30s keepalive |
+
+### Rate Limiting
+
+The hub enforces per-user rate limits. When exceeded, returns **429** with JSON `{ error }` and rate-limit headers.

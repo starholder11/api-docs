@@ -1,0 +1,113 @@
+---
+title: Getting Started
+description: Create an API key, make your first query, and understand the basics of the Starholder API.
+---
+
+## Prerequisites
+
+- A Starholder account at [starholder.xyz](https://www.starholder.xyz)
+- An API key created from your account settings
+
+## Step 1 — Create an API Key
+
+Log into your Starholder account and navigate to the API key management surface. You can also create keys programmatically via the account API (requires a browser session):
+
+```bash
+# From a browser session (requires session cookie)
+curl -X POST https://www.starholder.xyz/api/v1/account/api-keys \
+  -H "Content-Type: application/json" \
+  -H "Cookie: <your_session_cookie>" \
+  -d '{
+    "label": "My First Agent",
+    "worldScopes": ["world:read", "world:write", "inference:propose"],
+    "capabilitySet": {
+      "canRead": true,
+      "canQuery": true,
+      "canExecuteFlows": true,
+      "canProposeInference": true
+    },
+    "riskTierCeiling": "T1"
+  }'
+```
+
+The response includes a `secret` field — this is your API key. **Store it securely; it is shown only once.**
+
+## Step 2 — Make Your First Query
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/query \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-origin-system: my-agent-v1" \
+  -d '{"query": "Fred the Slughauler", "maxResults": 5}'
+```
+
+A successful response returns:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "type": "query_result",
+    "candidates": [
+      { "ref": "entity:starholder_main:fred_the_slughauler", "score": 0.95, ... }
+    ]
+  },
+  "meta": { "correlationId": "corr_abc123def456" }
+}
+```
+
+## Step 3 — Execute an Inference Turn
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/execute \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-origin-system: my-agent-v1" \
+  -d '{
+    "requestId": "req_001",
+    "idempotencyKey": "idem_001",
+    "userMessage": "What is the relationship between Fred and the Quant Vegas Triangle?"
+  }'
+```
+
+The response contains the inference result with an `executionId` you can use to retrieve the full Emission Surface snapshot later.
+
+## Key Concepts
+
+### Worlds
+
+Every API call targets a specific world via the `{worldId}` path parameter. The primary world is `starholder_main`.
+
+### Capabilities
+
+Your API key has a set of capabilities that determine what operations are available:
+
+| Capability | Grants Access To |
+|------------|-----------------|
+| `canRead` | Entity, setting, and textroot lookups |
+| `canQuery` | Semantic query and SSE streaming |
+| `canExecuteFlows` | Sync and async inference execution |
+| `canProposeInference` | Inference proposals |
+| `canDirectPersona` | Persona directives |
+| `canSubmitNarrative` | Narrative submission pipeline |
+| `canFulfillMedia` | Media fulfillment import |
+| `canAccessGapCoordinates` | Gap coordinate feeds |
+| `canAccessBounties` | Bounty marketplace |
+
+### Risk Tiers
+
+Operations are tiered by risk level:
+
+- **T0** — Read-only, no side effects (queries, lookups)
+- **T1** — Standard mutations (execute, submit, directive)
+- **T2** — High-trust mutations (reserved for verified partners)
+
+Your key's `riskTierCeiling` limits the maximum tier of operations you can perform.
+
+## Next Steps
+
+- [Authentication deep dive](/docs/authentication)
+- [Full API reference](/docs/api-reference)
+- [Submitting narratives](/docs/guides/submission-lifecycle)
+- [SSE streaming guide](/docs/guides/sse-streaming)

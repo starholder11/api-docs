@@ -1,0 +1,50 @@
+---
+title: Directive
+description: Direct the persona to act on the world — explore topics, fill gaps, and reason about connections.
+---
+
+## POST /world/\{worldId\}/directive
+
+Issue a directive to the world's persona. The persona is the world's cognitive actor — it can reason about topology, identify connections, generate speculative bridges, and produce lore.
+
+**Auth:** Bearer | **Capability:** `canDirectPersona` | **Scope:** `persona:direct` | **Risk Tier:** T1
+
+Does **not** require the `x-origin-system` header (unlike query/execute).
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/directive \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "directiveId": "dir_001",
+    "intent": "Explore the relationship between Fred and the Quant Vegas Triangle",
+    "anchorRefs": ["entity:starholder_main:fred_the_slughauler"],
+    "mode": "exploratory",
+    "maxTurns": 3
+  }'
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `directiveId` | string | Yes | Unique directive identifier |
+| `intent` | string | Yes | What you want the persona to do |
+| `anchorRefs` | string[] | No | Entity/setting refs to anchor the directive |
+| `sourceGapId` | string | No | Gap coordinate that motivated this directive |
+| `targetBountyId` | string | No | Bounty this directive is fulfilling |
+| `mode` | string | No | Execution mode (`exploratory`, `focused`, `analytical`) |
+| `maxTurns` | number | No | Maximum inference turns |
+| `creativeDirection` | string | No | Additional creative guidance |
+
+### Response (200)
+
+Returns the directive execution result.
+
+### Error Cases
+
+| Status | Code | Cause |
+|--------|------|-------|
+| 422 | `ERR_VALIDATION_FAILED` | Missing required fields or schema violation |
+| 422 | `ERR_DIRECTIVE_REJECTED` | Preflight check failed (incoherent anchor/intent) |
+| 403 | `ERR_PERMISSION_INTERSECTION_DENIED` | Key lacks `canDirectPersona` or insufficient risk tier |

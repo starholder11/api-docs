@@ -1,0 +1,78 @@
+---
+title: Execution Tools
+description: MCP tools for executing inference turns, proposals, and persona directives.
+---
+
+Execution tools trigger persona activity and world state changes. They require write scopes and appropriate capabilities.
+
+## execute_turn
+
+Synchronous turn execution with streaming.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `requestId` | string | Yes | Request identifier |
+| `userMessage` | string | Yes | Inference prompt |
+| `flowId` | string | No | Specific flow to execute |
+| `flowInput` | object | No | Flow input parameters |
+| `executionMode` | string | No | Execution mode hint |
+
+**Requires:** `canExecuteFlows` capability, `world:write` + `inference:propose` scopes
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/execute`
+
+---
+
+## execute_turn_async
+
+Async turn job submission. Returns immediately with a job ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `requestId` | string | Yes | Request identifier |
+| `userMessage` | string | Yes | Inference prompt |
+| `flowId` | string | No | Specific flow |
+| `flowInput` | object | No | Flow input |
+| `webhookUrl` | string | No | Callback URL for completion |
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/execute/async`
+
+---
+
+## propose_inference
+
+Propose inference without committing side effects. Useful for preview/analysis.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `requestId` | string | Yes | Request identifier |
+| `content` | string | Yes | Inference content |
+| `anchorRefs` | string[] | No | Anchor entity/setting refs |
+| `mode` | string | No | Proposal mode |
+
+**Requires:** `canProposeInference` capability
+
+---
+
+## direct_persona
+
+Direct the persona to act on the world.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `directiveId` | string | Yes | Unique directive ID |
+| `intent` | string | Yes | What the persona should do |
+| `anchorRefs` | string[] | No | Anchor refs |
+| `sourceGapId` | string | No | Motivating gap coordinate |
+| `targetBountyId` | string | No | Associated bounty |
+| `mode` | string | No | Execution mode |
+| `maxTurns` | number | No | Turn limit |
+| `creativeDirection` | string | No | Creative guidance |
+
+**Requires:** `canDirectPersona` capability, `persona:direct` scope
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/directive`

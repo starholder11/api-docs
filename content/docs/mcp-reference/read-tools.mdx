@@ -1,0 +1,131 @@
+---
+title: Read Tools
+description: MCP tools for querying world state, entities, settings, textroots, gaps, bounties, and seeds.
+---
+
+Read tools are stateless queries that do not modify world state. All require `world:read` scope.
+
+## query_world
+
+Semantic or structured query against a world.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `query` | string | Yes | Search query |
+| `maxResults` | number | No | Maximum results |
+| `retrievalDepth` | number | No | Retrieval depth control |
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/query`
+
+---
+
+## get_entity
+
+Retrieve one entity by canonical reference.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `ref` | string | Yes | Entity ref (e.g. `fred_the_slughauler`) |
+| `includeRelationships` | boolean | No | Include graph relationships |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/entities/{ref}`
+
+---
+
+## get_setting
+
+Retrieve one setting by reference.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `ref` | string | Yes | Setting ref |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/settings/{ref}`
+
+---
+
+## get_textroot
+
+Retrieve a text root with optional scene data.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `ref` | string | Yes | TextRoot ref |
+| `includeScenes` | boolean | No | Include scene decomposition |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/textroots/{ref}`
+
+---
+
+## get_gaps
+
+List gap coordinates for a world.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Page size |
+| `minDiscrepancy` | number | No | Minimum gap discrepancy score |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/gaps`
+
+---
+
+## get_bounties
+
+List bounties with optional filters.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Page size |
+| `status` | string | No | Filter by bounty status |
+| `type` | string | No | Filter by bounty type |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/bounties`
+
+---
+
+## get_extraction
+
+Extraction result for a submission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `submissionId` | string | Yes | Submission ID |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/submit/{submissionId}/extraction`
+
+---
+
+## get_work_manifest
+
+Work manifest for a submission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `submissionId` | string | Yes | Submission ID |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/submit/{submissionId}/manifest`
+
+---
+
+## get_seeds
+
+Active public seed feed entries.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `limit` | number | No | Page size |
+| `cursor` | string | No | Pagination cursor |
+
+**HTTP equivalent:** `GET /api/v1/world/{worldId}/seeds`

@@ -1,0 +1,84 @@
+---
+title: Account Management
+description: Manage your account profile and API keys.
+---
+
+All account routes require session authentication (browser login). API key Bearer auth does not work on these routes.
+
+## GET /account
+
+Current user profile summary.
+
+**Auth:** Session
+
+---
+
+## GET /account/api-keys
+
+List all API keys for the authenticated user. Returns public views only (no secrets).
+
+**Auth:** Session
+
+---
+
+## POST /account/api-keys
+
+Create a new API key.
+
+**Auth:** Session
+
+### Request Body
+
+```json
+{
+  "label": "My Agent Key",
+  "worldScopes": ["world:read", "world:write", "inference:propose"],
+  "capabilitySet": {
+    "canRead": true,
+    "canQuery": true,
+    "canExecuteFlows": true,
+    "canProposeInference": true
+  },
+  "riskTierCeiling": "T1"
+}
+```
+
+### Response
+
+Returns the key with `secret` (shown only once). Note: response uses `scopes` and `capabilities` field names (different from the request's `worldScopes` and `capabilitySet`).
+
+---
+
+## GET /account/api-keys/\{keyId\}
+
+Single key public record (no secret).
+
+**Auth:** Session
+
+---
+
+## POST /account/api-keys/\{keyId\}/rotate
+
+Generate a new secret for an existing key. The old secret is immediately invalidated.
+
+**Auth:** Session
+
+Returns the new `secret`.
+
+---
+
+## POST /account/api-keys/\{keyId\}/revoke
+
+Permanently revoke a key. Idempotent — revoking an already-revoked key succeeds.
+
+**Auth:** Session
+
+After revocation, using the key returns **401** (the key fails hash lookup entirely).
+
+---
+
+## GET /account/api-keys/\{keyId\}/audit
+
+Audit event history for a specific key. Available even after revocation.
+
+**Auth:** Session

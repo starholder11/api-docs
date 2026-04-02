@@ -1,0 +1,140 @@
+---
+title: STAR Ledger
+description: Balance, activity, transfers, tips, and account statements for the $STAR economy.
+---
+
+The STAR ledger manages the world's internal currency. All user-facing ledger routes require session authentication (browser login).
+
+## GET /star/balance
+
+Current $STAR balance for the authenticated user.
+
+**Auth:** Session
+
+```json
+{
+  "userId": "...",
+  "accountId": "...",
+  "asset": "STAR",
+  "availableBalance": "150.00",
+  "totalBalance": "200.00",
+  "computedAt": "2026-04-02T..."
+}
+```
+
+Missing accounts return zero balances.
+
+---
+
+## GET /star/activity
+
+Activity feed for the authenticated user.
+
+**Auth:** Session
+
+### Query Parameters
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `from` | ISO date | Start of range |
+| `to` | ISO date | End of range |
+| `type` | string | Receipt type filter |
+| `cursor` | string | Pagination cursor |
+| `limit` | number | Max 100 |
+
+### Response
+
+```json
+{
+  "userId": "...",
+  "items": [...],
+  "nextCursor": "...",
+  "hasMore": true
+}
+```
+
+---
+
+## GET /star/activity/\{receiptId\}
+
+Single receipt detail. Returns **403** if the receipt is not owned by the authenticated user.
+
+---
+
+## GET /star/account-statement
+
+Account statement for a date range. Both `from` and `to` query params are required (ISO format).
+
+Returns **503** (`ledger_unconfigured`) if the STAR ledger is not active.
+
+---
+
+## POST /star/transfer
+
+Transfer $STAR to another user.
+
+**Auth:** Session
+
+```json
+{
+  "idempotencyKey": "xfer_001",
+  "recipientId": "user_abc",
+  "amount": 50
+}
+```
+
+---
+
+## POST /star/tip
+
+Tip $STAR to another user with a memo.
+
+**Auth:** Session
+
+```json
+{
+  "idempotencyKey": "tip_001",
+  "recipientId": "user_abc",
+  "amount": 10,
+  "memo": "Great story!"
+}
+```
+
+---
+
+## GET /star/seeds/my-slots
+
+View your 4 seed slots with state and cooldown information.
+
+**Auth:** Session
+
+```json
+{
+  "slots": [
+    { "slotIndex": 0, "state": "available", "cooldownUntil": null },
+    { "slotIndex": 1, "state": "held", "cooldownUntil": null, "seed": { ... } }
+  ]
+}
+```
+
+---
+
+## Escrow Operations
+
+These routes handle $STAR escrow for bounties and seeds. They use dual authentication (STAR internal token + session).
+
+### POST /star/bounty-escrow
+
+| Operation | Fields | Description |
+|-----------|--------|-------------|
+| `fund` | `issuerUserId`, `bountyId`, `amount`, `idempotencyKey` | Fund bounty escrow |
+| `release` | `fulfillerId`, `bountyId`, `claimId`, `amount` | Release to fulfiller |
+| `return` | `issuerUserId`, `bountyId`, `reason` | Return to issuer (cancelled/expired) |
+
+### POST /star/seed-escrow
+
+| Operation | Fields | Description |
+|-----------|--------|-------------|
+| `hold` | `seederId`, `seedId`, `amount`, `idempotencyKey` | Hold $STAR for seed |
+| `settle` | `seederId`, `creatorId`, `seedId`, `bundleId` | Settle on completion |
+| `return` | `seederId`, `seedId` | Return escrowed amount |

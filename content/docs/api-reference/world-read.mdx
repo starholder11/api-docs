@@ -1,0 +1,112 @@
+---
+title: World Read
+description: Retrieve entities, settings, textroots, gap coordinates, and bounty feeds.
+---
+
+## GET /world/\{worldId\}/entities/\{ref\}
+
+Retrieve an entity profile by canonical reference.
+
+**Auth:** Bearer or session | **Capability:** `canRead` | **Scope:** `world:read`
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/entities/fred_the_slughauler \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Path Parameters
+
+| Param | Description |
+|-------|-------------|
+| `worldId` | World identifier (e.g. `starholder_main`) |
+| `ref` | Canonical entity ref. Format: `kind:namespace:id` or short form |
+
+### Response (200)
+
+Entity profile object. Returns **404** if the entity does not exist in the world's graph.
+
+---
+
+## GET /world/\{worldId\}/settings/\{ref\}
+
+Retrieve a setting profile by canonical reference.
+
+**Auth:** Bearer or session | **Capability:** `canRead` | **Scope:** `world:read`
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/settings/quant_vegas_triangle \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+Returns **404** if the setting is not found.
+
+---
+
+## GET /world/\{worldId\}/textroots/\{ref\}
+
+Retrieve a TextRoot (story) by reference.
+
+**Auth:** Bearer or session | **Capability:** `canRead` | **Scope:** `world:read`
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/charley_valois \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Ref Formats
+
+- **xref-backed:** `charley_valois` (entity cross-reference)
+- **Direct alias:** `txt:textroot_<id>:story`
+
+Returns **404** if the textroot is not found.
+
+---
+
+## GET /world/\{worldId\}/gaps
+
+Retrieve gap coordinates — topology holes that represent opportunities for contribution.
+
+**Auth:** Bearer or session | **Capability:** `canAccessGapCoordinates` | **World flag:** `publicGapFeedEnabled`
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/gaps \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Response (200)
+
+```json
+{
+  "ok": true,
+  "data": {
+    "gaps": [...],
+    "cursor": "...",
+    "hasMore": false
+  }
+}
+```
+
+Returns **404** (`ERR_WORLD_POLICY_DENIED`) if the gap feed is not enabled for this world.
+
+---
+
+## POST /world/\{worldId\}/gaps
+
+Update gap visibility state.
+
+**Auth:** Bearer or session | **Capability:** `canAccessGapCoordinates` | **Scope:** `world:write` | **Mutation class:** `bounty_write`
+
+---
+
+## GET /world/\{worldId\}/bounties
+
+List bounties in the marketplace.
+
+**Auth:** Bearer or session | **Capability:** `canAccessBounties` | **World flag:** `publicBountyFeedEnabled`
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/bounties \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+Returns a paginated feed of bounties with optional seed and gap data.

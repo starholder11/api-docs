@@ -1,0 +1,15 @@
+{
+  "title": "API Reference",
+  "pages": [
+    "index",
+    "world-runtime",
+    "world-read",
+    "collaborative-production",
+    "directive",
+    "marketplace-bounties",
+    "marketplace-seeds",
+    "star-ledger",
+    "account-management",
+    "admin"
+  ]
+}

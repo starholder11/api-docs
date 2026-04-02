@@ -1,0 +1,159 @@
+---
+title: Marketplace — Bounties
+description: Create, claim, submit, review, and finalize bounties in the Starholder marketplace.
+---
+
+The bounty marketplace connects content demand (world gaps, curator objectives) with external creator supply. Bounties have types (`text_story`, `media_production`), carry $STAR escrow, and follow a structured lifecycle.
+
+## Bounty Lifecycle
+
+```
+create → claim → submit → review → finalize
+                                  ↘ revision_requested → resubmit
+```
+
+**Self-fulfillment** (issuer settles their own bounty) uses the atomic `/settle` endpoint.
+
+---
+
+## GET /world/\{worldId\}/bounties
+
+List bounties with optional filters.
+
+**Auth:** Bearer or session | **Capability:** `canAccessBounties`
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/bounties \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+Returns paginated bounty list with `bounties`, `total`, `cursor`.
+
+---
+
+## POST /world/\{worldId\}/bounties
+
+Create a new bounty.
+
+**Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `bounty:post`
+
+```json
+{
+  "type": "text_story",
+  "title": "The Lost Archives of the Triangle",
+  "objective": "Write a 2000-word story about...",
+  "creativeBrief": "Focus on atmospheric tension...",
+  "budget": 100,
+  "sourceGapId": "gap_abc123"
+}
+```
+
+Funds escrow from the issuer's $STAR balance when the ledger is configured.
+
+---
+
+## GET /world/\{worldId\}/bounties/\{bountyId\}
+
+Retrieve a single bounty with full detail.
+
+---
+
+## POST /world/\{worldId\}/bounties/\{bountyId\}/claim
+
+Claim an open bounty.
+
+**Auth:** Bearer or session | **Scope:** `bounty:claim`
+
+```json
+{ "expiresAt": "2026-05-01T00:00:00Z" }
+```
+
+---
+
+## POST /world/\{worldId\}/bounties/\{bountyId\}/submit
+
+Submit fulfillment work for a claimed bounty.
+
+**Auth:** Bearer or session | **Scope:** `bounty:submit`
+
+Text submissions include narrative content. Media submissions reference staged assets uploaded via the staging endpoint.
+
+---
+
+## POST /world/\{worldId\}/bounties/\{bountyId\}/review
+
+Review a bounty submission (issuer only).
+
+**Auth:** Bearer or session | **Scope:** `bounty:review`
+
+```json
+{
+  "claimId": "claim_001",
+  "submissionId": "bsub_001",
+  "decision": "accept",
+  "feedback": "Excellent work."
+}
+```
+
+Decisions: `accept`, `reject`, `revision_requested`. Accepting may auto-finalize.
+
+---
+
+## POST /world/\{worldId\}/bounties/\{bountyId\}/finalize
+
+Finalize an accepted bounty. Releases escrow and triggers any media top-up hooks.
+
+**Auth:** Bearer or session | **Scope:** `bounty:review`
+
+---
+
+## POST /world/\{worldId\}/bounties/\{bountyId\}/settle
+
+Atomic self-fulfillment path (issuer only, `text_story` bounties). Combines submit + auto-accept + finalize + escrow release in one call.
+
+**Auth:** Session | **Scope:** `bounty:submit`
+
+---
+
+## GET /world/\{worldId\}/bounties/\{bountyId\}/notes
+
+List notes on a bounty thread.
+
+## POST /world/\{worldId\}/bounties/\{bountyId\}/notes
+
+Post a note to the bounty discussion thread.
+
+**Auth:** Bearer or session | **Scope:** `bounty:note`
+
+---
+
+## GET /world/\{worldId\}/bounties/\{bountyId\}/work-manifest
+
+Retrieve the work manifest associated with a bounty.
+
+---
+
+## GET /world/\{worldId\}/bounties/\{bountyId\}/submission/\{submissionId\}
+
+Retrieve a specific bounty submission with optional presigned asset URLs.
+
+---
+
+## POST /world/\{worldId\}/bounties/\{bountyId\}/staging/upload-url
+
+Get a presigned S3 upload URL for media assets.
+
+```json
+{
+  "uploadUrl": "https://s3...",
+  "assetKey": "...",
+  "stagingSessionId": "...",
+  "expiresAt": "..."
+}
+```
+
+---
+
+## GET /world/\{worldId\}/bounties/media-sources
+
+List eligible media sources for media production bounties.

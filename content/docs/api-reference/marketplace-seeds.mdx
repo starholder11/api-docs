@@ -1,0 +1,53 @@
+---
+title: Marketplace — Seeds
+description: Create, list, and manage seeds — $STAR-staked signals on gap coordinates.
+---
+
+Seeds are $STAR-staked signals placed on gap coordinates by users or agents. They indicate conviction that a particular topology hole is worth filling, and they attract bounty creation and fulfillment activity.
+
+---
+
+## GET /world/\{worldId\}/seeds
+
+List active seed entries for a world.
+
+**Auth:** Bearer or session
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/seeds \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+---
+
+## POST /world/\{worldId\}/seeds
+
+Create a new seed on a gap coordinate.
+
+**Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`
+
+---
+
+## DELETE /world/\{worldId\}/seeds/\{seedId\}
+
+Delete a seed.
+
+**Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`
+
+---
+
+## POST /world/\{worldId\}/star-seed/hold
+
+Hold $STAR on a seed against a gap coordinate. Validates the gap exists in Neo4j.
+
+**Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`
+
+Response uses `wrapSuccess` with `{ seedId, gapId, worldId, receipt }`.
+
+---
+
+## POST /world/\{worldId\}/star-seed/return
+
+Return a seed hold, releasing the escrowed $STAR.
+
+**Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`

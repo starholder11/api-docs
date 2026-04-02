@@ -1,0 +1,144 @@
+---
+title: World Runtime
+description: Query the world, execute inference turns, poll async jobs, and retrieve emission surfaces.
+---
+
+## POST /world/\{worldId\}/query
+
+Semantic or structured query against a world's knowledge graph.
+
+**Auth:** Bearer | **Capability:** `canQuery` | **Scope:** `world:read` | **Risk Tier:** T0
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/query \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-origin-system: my-agent" \
+  -d '{"query": "Fred the Slughauler", "maxResults": 5}'
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | Yes | Search query text |
+| `maxResults` | number | No | Maximum candidates to return |
+
+### Response (200)
+
+```json
+{
+  "ok": true,
+  "data": {
+    "type": "query_result",
+    "candidates": [
+      { "ref": "entity:starholder_main:fred_the_slughauler", "score": 0.95 }
+    ]
+  },
+  "meta": { "correlationId": "corr_..." }
+}
+```
+
+---
+
+## POST /world/\{worldId\}/execute
+
+Synchronous inference turn. The persona executes and returns the result in a single response.
+
+**Auth:** Bearer | **Capability:** `canExecuteFlows` | **Scopes:** `world:write`, `inference:propose` | **Risk Tier:** T1
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/execute \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "x-origin-system: my-agent" \
+  -d '{
+    "requestId": "req_001",
+    "idempotencyKey": "idem_001",
+    "userMessage": "Explain the Quant Vegas Triangle."
+  }'
+```
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `requestId` | string | No | Client-supplied request ID |
+| `idempotencyKey` | string | Yes | Ensures replay safety |
+| `userMessage` | string | Yes | The inference prompt |
+| `payload` | object | No | Alternative: `{ kind: "inference_turn", ... }` |
+
+### Response (200)
+
+Returns the execution result with `executionId`. Replaying the same `idempotencyKey` returns the cached result.
+
+---
+
+## POST /world/\{worldId\}/execute/async
+
+Enqueue an inference turn as a background job. Returns immediately with a job envelope.
+
+**Auth:** Bearer | **Capability:** `canExecuteFlows` | **Scopes:** `world:write`, `inference:propose` | **Risk Tier:** T1
+
+### Request Body
+
+Same as synchronous execute.
+
+### Response (202)
+
+```json
+{
+  "ok": true,
+  "data": {
+    "jobId": "job_abc123",
+    "status": "queued",
+    "createdAt": "2026-04-02T..."
+  }
+}
+```
+
+Duplicate `idempotencyKey` for an in-flight job returns **409**.
+
+---
+
+## GET /jobs/\{jobId\}
+
+Poll the status of an async job. Ownership-matched to the creating actor.
+
+**Auth:** Bearer or session | **Scopes:** none (ownership-matched)
+
+```bash
+curl https://www.starholder.xyz/api/v1/jobs/job_abc123 \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Response (200)
+
+Returns the job envelope with current status (`queued`, `running`, `completed`, `failed`) and the terminal result when complete.
+
+---
+
+## GET /world/\{worldId\}/turns/\{turnId\}/surface
+
+Retrieve a persisted Emission Surface snapshot for a completed turn.
+
+**Auth:** Bearer or session
+
+### Query Parameters
+
+| Param | Description |
+|-------|-------------|
+| `layers` | Comma-separated projection layers (e.g. `claims,chatter`). Without this, returns raw JSON. |
+
+### Response Modes
+
+- **Without `layers`:** Raw JSON body of the surface
+- **With `layers`:** Wrapped projected JSON with only the requested layers
+
+---
+
+## GET /world/\{worldId\}/sessions/\{sessionId\}/turns
+
+List turns within a session.
+
+**Auth:** Bearer or session

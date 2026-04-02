@@ -1,0 +1,16 @@
+{
+  "title": "Starholder API",
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "getting-started",
+    "authentication",
+    "error-handling",
+    "---API Reference---",
+    "api-reference",
+    "---MCP Reference---",
+    "mcp-reference",
+    "---Guides---",
+    "guides"
+  ]
+}

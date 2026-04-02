@@ -1,0 +1,114 @@
+---
+title: Error Handling
+description: Error envelope format, error codes, retry strategy, and status code mapping.
+---
+
+## Response Envelope
+
+### Success
+
+Routes that use the standard envelope return:
+
+```json
+{
+  "ok": true,
+  "data": { ... },
+  "meta": {
+    "correlationId": "corr_abc123def456",
+    "requestId": "req_001"
+  }
+}
+```
+
+`meta` is present when the handler includes request metadata. Some older routes (STAR wallet, key lifecycle) return raw JSON without the `ok` wrapper.
+
+### Error
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "ERR_AUTH_INVALID",
+    "message": "API key not found or inactive",
+    "retryable": false,
+    "correlationId": "corr_abc123def456"
+  }
+}
+```
+
+When `retryable` is `true`, the error may include `retryAfterMs` and the response will carry a `Retry-After` header (in seconds).
+
+## HTTP Status Codes
+
+| Status | Meaning | Retryable |
+|--------|---------|-----------|
+| **200** | Success | — |
+| **201** | Created (narrative submit) | — |
+| **202** | Accepted (async job enqueued) | — |
+| **400** | Bad request / validation failure | No |
+| **401** | Authentication failed (missing, invalid, or revoked key) | No |
+| **403** | Authorization denied (insufficient scope, capability, or risk tier) | No |
+| **404** | Resource not found or world policy denied | No |
+| **409** | Conflict (resource not ready, idempotency conflict, duplicate content hash) | Sometimes |
+| **422** | Validation error (schema violation, missing required field) | No |
+| **429** | Rate limited | Yes |
+| **500** | Internal server error | Yes |
+| **503** | Service unavailable (feature disabled, ledger unconfigured) | Yes |
+
+## Error Codes
+
+### Authentication
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `ERR_AUTH_INVALID` | 401 | Bearer token missing, malformed, or not found |
+| `ERR_AUTH_FORBIDDEN` | 403 | Actor kind not allowed for this route |
+
+### Authorization
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `ERR_PERMISSION_INTERSECTION_DENIED` | 403 | Key lacks required scope or capability |
+| `ERR_WORLD_POLICY_DENIED` | 404 | World-level policy flag not enabled |
+| `ERR_MUTATION_NOT_PERMITTED` | 403 | Mutation class not allowed for actor |
+
+### Validation
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `ERR_VALIDATION_FAILED` | 422 | Request body fails schema validation |
+| `ERR_MISSING_ORIGIN_SYSTEM` | 422 | `x-origin-system` header required but missing |
+| `ERR_CONTENT_HASH_MISMATCH` | 422 | Supplied `contentHash` doesn't match narrative text |
+
+### Resource State
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `ERR_EXTRACTION_NOT_READY` | 409 | Extraction pipeline still running |
+| `ERR_MANIFEST_NOT_READY` | 409 | Manifest not yet generated |
+| `ERR_STRATEGY_ALREADY_SET` | 409 | Manifest strategy cannot be changed once set |
+| `ERR_DUPLICATE_CONTENT_HASH` | 422 | Same narrative text submitted within dedupe window |
+| `ERR_IDEMPOTENCY_CONFLICT` | 409 | Async job with same idempotency key already exists |
+
+### Directive
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `ERR_DIRECTIVE_REJECTED` | 422 | Directive preflight rejected (incoherent request) |
+
+## Correlation IDs
+
+Every `/api/v1` response includes `X-Correlation-Id` in the response header. If you supply one in the request, it is echoed back. Otherwise the server generates one in the format `corr_<16 hex chars>`.
+
+Use correlation IDs when reporting issues or tracing requests through logs.
+
+## Retry Strategy
+
+For retryable errors (429, some 409, 5xx):
+
+1. Check the `Retry-After` header (seconds) if present
+2. If no header, use exponential backoff starting at 1 second
+3. Cap at 5 retries for 5xx errors
+4. Never retry 401, 403, or 422 errors
+
+For idempotent operations (`execute`, `execute/async`), safe replay is guaranteed via the `idempotencyKey`.

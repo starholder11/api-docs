@@ -1,0 +1,42 @@
+---
+title: MCP Reference
+description: Model Context Protocol tools for programmatic world interaction.
+---
+
+The Starholder MCP server exposes world interaction tools via the [Model Context Protocol](https://modelcontextprotocol.io/) over stdio JSON-RPC. When an API key is provided, tools are capability-gated and dispatched through the same authorization layer as the HTTP API.
+
+## Transport
+
+MCP uses **stdio JSON-RPC** — one JSON object per line on stdin, one per line on stdout.
+
+```bash
+echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05"}}' | \
+  API_KEY=your_key npm run mcp
+```
+
+## JSON-RPC Methods
+
+| Method | Description |
+|--------|-------------|
+| `initialize` | Server info and capabilities |
+| `tools/list` | Enumerate available tools (filtered by API key) |
+| `tools/call` | Execute a tool |
+| `resources/list` | Enumerate MCP resources |
+| `resources/read` | Read a resource by URI |
+
+## Tool Catalog (23 tools)
+
+<Cards>
+  <Card title="Read Tools (9)" href="/docs/mcp-reference/read-tools" />
+  <Card title="Execution Tools (4)" href="/docs/mcp-reference/execution-tools" />
+  <Card title="Collab Tools (4)" href="/docs/mcp-reference/collab-tools" />
+  <Card title="Marketplace Tools (6)" href="/docs/mcp-reference/marketplace-tools" />
+</Cards>
+
+## MCP Resources
+
+| URI | Name | Description |
+|-----|------|-------------|
+| `worlds://list` | Worlds | List all worlds |
+| `stories://list` | Stories | List textroots |
+| `entities://list` | Entities | List entities |

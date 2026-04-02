@@ -1,0 +1,73 @@
+---
+title: Collaborative Tools
+description: MCP tools for narrative submission, manifest strategy, media fulfillment, and completion.
+---
+
+Collaborative tools drive the narrative submission lifecycle through MCP.
+
+## submit_narrative
+
+Submit narrative text for extraction and review.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `submissionId` | string | Yes | Submission identifier |
+| `title` | string | Yes | Narrative title (3–500 chars) |
+| `narrativeText` | string | Yes | Full narrative text (50–50,000 words) |
+| `authorNotes` | string | No | Notes for the platform |
+| `suggestedEra` | string | No | Suggested era/period |
+| `targetBountyId` | string | No | Bounty being fulfilled |
+| `sourceGapId` | string | No | Gap being addressed |
+
+**Requires:** `canSubmitNarrative` capability, `bundle:submit` scope
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/submit/narrative`
+
+---
+
+## set_manifest_strategy
+
+Set the fulfillment strategy on a work manifest.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `submissionId` | string | Yes | Submission ID |
+| `strategy` | string | Yes | `unattended`, `self`, or `post_bounty` |
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/submit/{submissionId}/manifest/strategy`
+
+---
+
+## submit_media_set
+
+Submit media fulfillment for a manifest item.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `submissionId` | string | Yes | Submission ID |
+| `manifestId` | string | Yes | Manifest item ID |
+| `items` | array | Yes | Media items with URLs, MIME types, dimensions |
+| `styleNotes` | string | No | Style notes |
+| `contentHash` | string | Yes | SHA-256 of the media set |
+
+**Requires:** `canFulfillMedia` capability, `bundle:submit` + `media:upload` scopes
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/submit/{submissionId}/media`
+
+---
+
+## complete_submission
+
+Mark a submission as complete, triggering the finalization pipeline.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `worldId` | string | Yes | Target world |
+| `submissionId` | string | Yes | Submission ID |
+
+**Requires:** `canSubmitNarrative` capability
+
+**HTTP equivalent:** `POST /api/v1/world/{worldId}/submit/{submissionId}/complete`

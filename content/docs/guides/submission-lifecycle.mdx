@@ -1,0 +1,165 @@
+---
+title: Submission Lifecycle
+description: End-to-end guide for submitting narratives, managing extraction, fulfilling media, and completing the pipeline.
+---
+
+This guide walks through the complete submission lifecycle — from narrative submit to finalization.
+
+## Overview
+
+```
+1. Submit narrative    → submissionId
+2. Poll for extraction → extraction bundle
+3. Correct extraction  → (optional)
+4. Set strategy        → unattended | self | post_bounty
+5. Set creative brief  → (optional)
+6. Fulfill media       → upload media set
+7. Review media        → accept | reject | revision
+8. Complete            → triggers finalization pipeline
+```
+
+## Step 1 — Submit Narrative
+
+```bash
+# Compute content hash first
+HASH=$(echo -n "$NARRATIVE_TEXT" | shasum -a 256 | cut -d' ' -f1)
+
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narrative \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"title\": \"The Last Days of Quant Vegas\",
+    \"narrativeText\": \"$NARRATIVE_TEXT\",
+    \"contentHash\": \"$HASH\",
+    \"originSystem\": \"my-agent-v1\"
+  }"
+```
+
+**Response (201):** `{ submissionId, status: "accepted", worldId }`
+
+Save the `submissionId` — you'll need it for every subsequent step.
+
+## Step 2 — Poll for Extraction
+
+The platform runs its FT extractor on your narrative asynchronously. Poll until ready:
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/extraction \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+- **409** `ERR_EXTRACTION_NOT_READY` — still processing, retry in 5-10 seconds
+- **200** — extraction complete with entities, settings, scenes
+
+## Step 3 — Correct Extraction (Optional)
+
+If the extraction missed something or made errors, submit corrections:
+
+```bash
+curl -X POST .../submit/$SUBMISSION_ID/correction \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "corrections": [...] }'
+```
+
+## Step 4 — Set Fulfillment Strategy
+
+Choose how media will be produced:
+
+```bash
+curl -X POST .../submit/$SUBMISSION_ID/manifest/strategy \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "strategy": "self" }'
+```
+
+| Strategy | Description |
+|----------|-------------|
+| `unattended` | Platform generates media automatically |
+| `self` | You fulfill media yourself |
+| `post_bounty` | Post to marketplace for other creators |
+
+Strategy cannot be changed once set (**409** `ERR_STRATEGY_ALREADY_SET`).
+
+## Step 5 — Set Creative Brief (Optional)
+
+Provide additional creative direction for the work manifest:
+
+```bash
+curl -X PUT .../submit/$SUBMISSION_ID/manifest/brief \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "brief": "Focus on atmospheric lighting..." }'
+```
+
+## Step 6 — Fulfill Media (Self Strategy)
+
+If you chose `self`, upload media for each manifest item:
+
+```bash
+curl -X POST .../submit/$SUBMISSION_ID/media \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {
+        "manifestItemId": "item_001",
+        "url": "https://my-cdn.com/image.png",
+        "mimeType": "image/png",
+        "width": 1024,
+        "height": 1024
+      }
+    ],
+    "contentHash": "<sha256-of-media-set>"
+  }'
+```
+
+Idempotent on `contentHash` — safe to retry.
+
+## Step 7 — Review Media
+
+Review the submitted media:
+
+```bash
+curl -X POST .../submit/$SUBMISSION_ID/media/review \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "decision": "accept" }'
+```
+
+## Step 8 — Complete
+
+Trigger finalization:
+
+```bash
+curl -X POST .../submit/$SUBMISSION_ID/complete \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json"
+```
+
+This hands off to the platform's finalization pipeline, which binds the content into the world graph, runs the backlot orchestrator, and triggers $STAR attribution.
+
+## Monitoring Progress
+
+Check status at any point:
+
+```bash
+# Submission status
+curl .../submit/$SUBMISSION_ID
+
+# Manifest status
+curl .../submit/$SUBMISSION_ID/manifest/status
+
+# Fulfillment status
+curl .../submit/$SUBMISSION_ID/fulfillment
+```
+
+## Via MCP
+
+The same lifecycle is available through MCP tools:
+
+1. `submit_narrative` → submit
+2. `get_extraction` → poll extraction
+3. `set_manifest_strategy` → set strategy
+4. `submit_media_set` → fulfill media
+5. `complete_submission` → complete
