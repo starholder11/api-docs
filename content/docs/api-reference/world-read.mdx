@@ -74,16 +74,30 @@ Returns **404** if the textroot is not found.
 
 ## GET /world/\{worldId\}/gaps
 
-Retrieve **gap coordinates** for a world. A gap is a place in the knowledge graph where the topology says things are connected but no narrative content bridges them yet. For example, two entities might be linked by a relationship edge, but no story has been written about that relationship. Gaps are opportunities: they tell you exactly where the world needs new creative work.
+Retrieve **gap coordinates** for a world. A gap is a place in the knowledge graph where the structure says two things are connected — they share relationship edges, appear in the same scenes, or are referenced together — but no narrative content actually bridges them. The gap tells you: "something should exist here, but nobody has written it yet."
 
-Each gap includes the nodes it connects, a difficulty estimate, and any seeds (stakes) that users have placed on it. Gaps with more seeds are higher priority for the community.
+Gaps are the world's own story hooks. They are mathematically derived from the discrepancy between graph structure (how connected two nodes are) and vector density (how much content exists about that connection). High-discrepancy gaps are the most valuable opportunities for creative contribution — filling them earns the most \$STAR.
+
+Each gap entry includes the two anchor entities it connects, their human-readable labels, scoring metrics, a generated title and description explaining what kind of content could fill it, and references to nearby existing content that provides context for what already exists in the region.
 
 **Auth:** Bearer or session | **Capability:** `canAccessGapCoordinates` | **World flag:** `publicGapFeedEnabled`
 
 ```bash
-curl https://www.starholder.xyz/api/v1/world/starholder_main/gaps \
+curl "https://www.starholder.xyz/api/v1/world/starholder_main/gaps?limit=10&minDiscrepancy=0.5" \
   -H "Authorization: Bearer $API_KEY"
 ```
+
+### Query Parameters
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `cursor` | string | Pagination cursor from a previous response |
+| `limit` | number | Results per page (1–200, default 50) |
+| `minDiscrepancy` | number | Filter to gaps with at least this discrepancy score (0.0–1.0) |
+| `minSignificance` | number | Filter to gaps with at least this significance score |
+| `anchorRef` | string | Filter to gaps involving a specific entity or setting ref |
+| `status` | string | Filter by gap status: `open` or `filled` |
+| `surface` | string | Visibility surface: `internal_topology` (default), `agent_readable`, or `public_feed` |
 
 ### Response (200)
 
@@ -91,12 +105,52 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/gaps \
 {
   "ok": true,
   "data": {
-    "gaps": [...],
-    "cursor": "...",
-    "hasMore": false
+    "gaps": [
+      {
+        "gapId": "gap_abc123",
+        "title": "The Chen-Valencia Connection",
+        "description": "Dr. Chen and the Valencia Institute share three relationship edges and appear in overlapping scene contexts, but no narrative content explores their direct connection...",
+        "anchorRefs": ["ent:starholder_main:dr_chen", "ent:starholder_main:valencia_institute"],
+        "anchorLabels": {
+          "ent:starholder_main:dr_chen": "Dr. Chen",
+          "ent:starholder_main:valencia_institute": "Valencia Institute"
+        },
+        "anchorAEntityType": "person",
+        "anchorBEntityType": "organization",
+        "descriptionSource": "llm_enriched",
+        "discrepancy": 0.82,
+        "significanceScore": 0.71,
+        "graphPathLength": 2,
+        "status": "open",
+        "detectedAt": 1743580800000,
+        "promotedBountyId": "bounty_xyz789",
+        "nearbyContentRefs": ["txt:starholder_main:starlight_memo", "txt:starholder_main:meridian_files"]
+      }
+    ],
+    "cursor": "50"
   }
 }
 ```
+
+### Gap Feed Entry Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `gapId` | string | Unique gap identifier |
+| `title` | string | Human-readable title describing the gap (generated or enriched by LLM) |
+| `description` | string | Detailed explanation of what kind of content could fill this gap and why it matters |
+| `anchorRefs` | [string, string] | The two canonical refs this gap connects — the entities or settings on either side |
+| `anchorLabels` | object | Human-readable labels keyed by ref, so you can display names without additional lookups |
+| `anchorAEntityType` | string | Type of the first anchor (e.g., `person`, `organization`, `technology`) — present when known |
+| `anchorBEntityType` | string | Type of the second anchor |
+| `descriptionSource` | string | How the description was generated: `llm_enriched` (AI-written from context), `deterministic_fallback` (template-generated), or `legacy` (older format) |
+| `discrepancy` | number | 0.0–1.0 — how large the gap is between graph structure and content density. Higher = more valuable to fill. |
+| `significanceScore` | number | 0.0–1.0 — overall importance considering discrepancy, anchor connectivity, and community interest |
+| `graphPathLength` | number | How many hops apart the two anchors are in the graph (2 = directly connected through one intermediate) |
+| `status` | string | `open` (needs filling) or `filled` (content now exists) |
+| `detectedAt` | number | Unix timestamp when the gap was first detected |
+| `promotedBountyId` | string or absent | If someone has posted a funded bounty for this gap, the bounty ID is here |
+| `nearbyContentRefs` | string[] | Canonical refs to existing TextRoots and entities near this gap — context for what already exists in the region |
 
 Returns **404** (`ERR_WORLD_POLICY_DENIED`) if the gap feed is not enabled for this world.
 
@@ -104,9 +158,16 @@ Returns **404** (`ERR_WORLD_POLICY_DENIED`) if the gap feed is not enabled for t
 
 ## POST /world/\{worldId\}/gaps
 
-Update gap visibility state (e.g. hide or surface a gap).
+Update gap visibility state. Only available to world owners. Controls whether a gap appears on the public feed, is readable by agents, or stays internal.
 
 **Auth:** Bearer or session | **Capability:** `canAccessGapCoordinates` | **Scope:** `world:write` | **Mutation class:** `bounty_write`
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `gapId` | string | Yes | The gap to update |
+| `visibility` | string | Yes | `internal_topology`, `agent_readable`, or `public_feed` |
 
 ---
 
