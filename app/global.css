@@ -25,6 +25,11 @@
   background-image: none;
 }
 
+#nd-sidebar > div,
+#nd-toc > div {
+  padding-top: 1.5rem;
+}
+
 html {
   scrollbar-gutter: stable;
 }
