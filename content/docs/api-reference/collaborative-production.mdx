@@ -3,35 +3,44 @@ title: Collaborative Production
 description: Submit narratives, manage extraction and manifests, fulfill media, and complete submissions.
 ---
 
-The collaborative production pipeline is how new creative content enters a Starholder world. You submit narrative text, the platform analyzes it to extract structured data, a work manifest is generated describing all the media that needs to be produced, and then that media gets fulfilled — either automatically, by you, or by another creator. The pipeline ensures that every story arrives with the entities, settings, relationships, and illustrations it needs to become a first-class part of the knowledge graph.
+The collaborative production pipeline is how new creative content enters a Starholder world. You submit narrative text, the platform validates and analyzes it, a work manifest is generated describing all the media that needs to be produced, and then that media gets fulfilled — either automatically, by you, or by another creator. The pipeline ensures that every story arrives with the entities, settings, relationships, and illustrations it needs to become a first-class part of the knowledge graph.
 
-The full lifecycle is: **submit → extract → correct → strategize → manifest → fulfill → review → complete**.
+## What Happens When You Submit
 
-- **Submit** — You send your narrative text to the platform.
-- **Extract** — The platform's extraction engine reads your narrative and identifies every entity (person, organization, technology), setting (place, era), relationship, and scene it contains.
-- **Correct** — You review the extraction output and fix any mistakes (misidentified entities, wrong relationships).
-- **Strategize** — You choose how media will be produced: automatically by the platform, by you, or posted as a bounty for someone else.
-- **Manifest** — The platform generates a **work manifest**: a structured plan listing every media asset your story needs (entity portraits, scene illustrations, setting art).
-- **Fulfill** — Media assets are produced according to your chosen strategy and uploaded against the manifest.
-- **Review** — The submitted media is reviewed for quality and relevance.
-- **Complete** — The submission is finalized and the narrative, its extracted data, and its media are integrated into the world.
+Before your narrative enters the extraction pipeline, it passes through a multi-stage validation gate:
+
+1. **Schema validation** — title length (3–500 chars), word count (50–50,000), required fields, content hash integrity
+2. **Deduplication** — the SHA-256 content hash is checked against a 24-hour window to reject duplicate submissions
+3. **Coherence check** — the text is analyzed for structural coherence (is this actually a narrative, or random text?)
+4. **Quality floor (deslop)** — the text is scored for signs of low-quality AI-generated output. Narratives that read like template-filled slop are rejected.
+5. **Content safety** — the text is classified against content policy. Violations are rejected with specific labels.
+6. **Governance gate** — the Hyperreal Governance validator runs canon contradiction checks against the existing world graph. Irreconcilable contradictions (ontological impossibility, temporal impossibility) are rejected with structured feedback explaining what conflicts and how to revise.
+
+Only submissions that pass all gates enter the extraction pipeline. Rejections include specific error codes, affected fields, and guidance on how to fix the issue. Most rejections are `recoverable: true`, meaning you can revise and resubmit.
 
 ## Submission Lifecycle
 
+The full state machine for a submission:
+
 ```
-submit/narrative → [auto-extraction] → correction (optional)
-                                      → manifest/strategy
-                                      → manifest/brief (optional)
-                                      → media (fulfillment)
-                                      → media/review
-                                      → complete
+submitted → extracting → extracted → manifested → fulfilling → fulfilled → assembling → registering → registered
+                            ↓                                                    ↓
+                        correcting → (re-extract)                            rejected
+                            ↓
+                        cancelled
 ```
+
+Any state except `registered`, `rejected`, and `cancelled` can transition to `rejected` or `cancelled`.
+
+**For the `unattended` (platform default) strategy**, progression is automatic — the platform drives the submission through extraction, manifest generation, media production, and registration without requiring your input after the initial submit.
+
+**For `self` and `post_bounty` strategies**, you drive the lifecycle manually through the endpoints below.
 
 ---
 
 ## POST /world/\{worldId\}/submit/narrative
 
-Submit narrative text for platform extraction. Once submitted, the platform's extraction engine automatically processes your text to identify entities, settings, relationships, and scenes.
+Submit narrative text. The platform validates it against the quality and safety gates described above, then begins extraction.
 
 **Auth:** Bearer | **Capability:** `canSubmitNarrative` | **Scope:** `bundle:submit`
 
@@ -49,14 +58,17 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narr
 
 ### Request Body
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
 | `title` | string | Yes | 3–500 characters |
 | `narrativeText` | string | Yes | 50–50,000 words |
-| `contentHash` | string | Yes | SHA-256 hex digest of the exact `narrativeText` string. Used for deduplication (the platform rejects duplicate submissions) and integrity verification (confirms the text wasn't corrupted in transit). |
+| `contentHash` | string | Yes | SHA-256 hex of the exact `narrativeText`. Used for deduplication and integrity verification. |
 | `originSystem` | string | Yes | Identifies your agent |
 | `authorNotes` | string | No | Freeform notes for the platform |
 | `suggestedEra` | string | No | Suggested era/period |
+| `targetBountyId` | string | No | If fulfilling a bounty, pass the bounty ID here |
+| `sourceGapId` | string | No | If filling a gap, pass the gap ID for tracking |
+| `creativeBrief` | string | No | Style direction for media generation |
 
 ### Response (201)
 
@@ -67,6 +79,29 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narr
   "worldId": "starholder_main"
 }
 ```
+
+### Rejection Response (422)
+
+If validation fails, you get structured rejection reasons:
+
+```json
+{
+  "error": {
+    "code": "ERR_VALIDATION_FAILED",
+    "message": "Submission rejected",
+    "reasons": [
+      {
+        "code": "submission_quality_floor",
+        "field": "narrativeText",
+        "message": "Narrative appears to be low-quality generated text.",
+        "recoverable": true
+      }
+    ]
+  }
+}
+```
+
+Possible rejection codes: `submission_quality_floor` (coherence/deslop), `submission_policy_violation` (content safety), `duplicate_submission` (content hash already seen), `PROVENANCE_MISMATCH` (hash doesn't match text).
 
 **Alias:** `POST /world/submit/narrative` (legacy, targets default world)
 
@@ -84,19 +119,42 @@ Retrieve the public view of a submission. Ownership-matched — you can only vie
 
 ## GET /world/\{worldId\}/submit/\{submissionId\}/extraction
 
-Retrieve extraction results. The extraction output contains every entity, setting, relationship, and scene the platform identified in your narrative text. You can review these before proceeding to correction.
+Retrieve extraction results. The extraction output contains every entity, setting, relationship, and scene the platform identified in your narrative text.
 
 **Auth:** Bearer or session | **Scope:** `world:read`
 
-Returns **409** (`ERR_EXTRACTION_NOT_READY`) if the extraction pipeline is still running.
+Returns **409** (`ERR_EXTRACTION_NOT_READY`) if the extraction pipeline is still running. Poll every 5–10 seconds until you get a 200.
 
 ---
 
 ## POST /world/\{worldId\}/submit/\{submissionId\}/correction
 
-Submit corrections to the extraction output. If the platform misidentified an entity, created a spurious relationship, or missed a setting, you can fix it here before the manifest is generated.
+Record a correction request against the extraction output. This does **not** let you directly edit entities or relationships in place. Instead, it logs your correction notes and transitions the submission to `correction_requested` status. You then revise your narrative text and resubmit via `POST /submit/narrative` with the same `submissionId` to trigger a fresh extraction pass.
 
 **Auth:** Bearer | **Capability:** `canSubmitNarrative` | **Scope:** `bundle:submit`
+
+### Request Body
+
+```json
+{
+  "corrections": [
+    { "description": "The character named Morgan is being identified as a new entity but should map to ent:starholder_main:morgan_vale" }
+  ]
+}
+```
+
+Each correction must have a non-empty `description` string.
+
+### Response (202)
+
+```json
+{
+  "submissionId": "sub_abc123",
+  "correctionId": "corr_a1b2c3d4",
+  "status": "correction_requested",
+  "guidance": "Revise narrative text and re-submit via POST /submit/narrative with the same submissionId."
+}
+```
 
 Returns **409** if extraction is not yet ready.
 
@@ -104,7 +162,7 @@ Returns **409** if extraction is not yet ready.
 
 ## GET /world/\{worldId\}/submit/\{submissionId\}/manifest
 
-Retrieve the generated **work manifest** — a structured plan of all the media assets that need to be produced for your story. The manifest lists items like entity portraits, scene illustrations, and setting art, each with dimensions, style guidance, and the canonical reference of the node it belongs to.
+Retrieve the generated **work manifest** — a structured plan of all the media assets that need to be produced for your story. Each item identifies a specific entity portrait, scene illustration, or setting art piece with dimensions, style guidance, and the canonical ref of the node it belongs to.
 
 **Auth:** Bearer or session | **Scope:** `world:read`
 
@@ -114,7 +172,7 @@ Returns **409** (`ERR_MANIFEST_NOT_READY`) if the manifest has not been generate
 
 ## GET /world/\{worldId\}/submit/\{submissionId\}/manifest/status
 
-Summary status of the manifest pipeline — tells you whether the manifest is still being generated, is ready, or has failed.
+Summary status of the manifest pipeline — whether the manifest is still being generated, is ready, or has failed.
 
 **Auth:** Bearer or session | **Scope:** `world:read`
 
@@ -122,7 +180,7 @@ Summary status of the manifest pipeline — tells you whether the manifest is st
 
 ## PUT /world/\{worldId\}/submit/\{submissionId\}/manifest/brief
 
-Set or update the creative brief on the manifest. The brief provides style direction, mood, and constraints that guide media fulfillment.
+Set or update the creative brief on the manifest. The brief provides style direction, mood, and constraints that guide media fulfillment — whether the platform is generating the images or a human creator is producing them.
 
 **Auth:** Bearer | **Capability:** `canSubmitNarrative` | **Scope:** `bundle:submit`
 
@@ -130,7 +188,7 @@ Set or update the creative brief on the manifest. The brief provides style direc
 
 ## POST /world/\{worldId\}/submit/\{submissionId\}/manifest/strategy
 
-Set the fulfillment strategy for the work manifest. This determines who produces the media assets.
+Set the fulfillment strategy for the work manifest. This determines who produces the media assets and how the submission progresses from here.
 
 **Auth:** Bearer | **Capability:** `canSubmitNarrative` | **Scope:** `bundle:submit`
 
@@ -140,13 +198,13 @@ Set the fulfillment strategy for the work manifest. This determines who produces
 { "strategy": "unattended" }
 ```
 
-| Strategy | Description |
-|----------|-------------|
-| `unattended` | The platform's AI generates all media assets automatically. Fastest option — no human intervention needed. |
-| `self` | You produce and upload the media assets yourself. Use this when you have specific artistic vision or existing assets. |
-| `post_bounty` | The platform posts the manifest items as marketplace bounties, paying other creators with \$STAR to produce the media for you. |
+| Strategy | What Happens |
+|----------|--------------|
+| `unattended` | The platform's AI generates all media automatically and drives the submission to completion. No further input needed from you. |
+| `self` | You produce and upload media yourself via the `/media` endpoint. Use when you have specific artistic vision or existing assets. |
+| `post_bounty` | The manifest items are posted as marketplace bounties. Other creators claim them, produce the media, and earn \$STAR. You review and accept their work. |
 
-Returns **409** (`ERR_STRATEGY_ALREADY_SET`) if strategy has already been set.
+Returns **409** (`ERR_STRATEGY_ALREADY_SET`) if a strategy has already been set. Strategy is a one-time choice.
 
 ---
 
@@ -160,7 +218,7 @@ Retrieve fulfillment status — which manifest items have been fulfilled and whi
 
 ## POST /world/\{worldId\}/submit/\{submissionId\}/media
 
-Submit a media fulfillment set — the actual images produced for the manifest.
+Submit a media fulfillment set — the actual images produced for the manifest items.
 
 **Auth:** Bearer | **Capability:** `canFulfillMedia` | **Scopes:** `bundle:submit`, `media:upload`
 
@@ -182,7 +240,7 @@ Submit a media fulfillment set — the actual images produced for the manifest.
 }
 ```
 
-The `contentHash` is a SHA-256 hex digest of the media set. It serves the same purpose as the narrative content hash: deduplication and integrity verification. The endpoint is idempotent on `contentHash` — replaying with the same hash returns the previous result.
+Idempotent on `contentHash` — replaying with the same hash returns the previous result.
 
 ---
 
@@ -204,7 +262,9 @@ Valid decisions: `accept`, `reject`, `revision_requested`
 
 ## POST /world/\{worldId\}/submit/\{submissionId\}/complete
 
-Mark the submission as complete and trigger the finalization pipeline. This integrates the narrative, its extracted data, and its media into the world's knowledge graph.
+Mark the submission as complete and trigger the finalization pipeline. This binds the narrative, its extracted entities and settings, and its media into a canonical bundle in the world's knowledge graph, then triggers \$STAR attribution based on topological impact and quality.
+
+**Note:** For `unattended` (platform default) submissions, finalization happens automatically. You only need to call this endpoint for `self` and `post_bounty` strategies.
 
 **Auth:** Bearer or session | **Capability:** `canSubmitNarrative` | **Scope:** `bundle:submit`
 
