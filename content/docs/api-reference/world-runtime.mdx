@@ -74,7 +74,14 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/execute \
 
 ### Response (200)
 
-Returns the execution result with an `executionId`. The `executionId` is a stable identifier you can use to retrieve the full output later (via the surface endpoint) or to reference this turn in subsequent API calls. Replaying the same `idempotencyKey` returns the cached result without running a new inference turn.
+Returns an `ExecutionResult` envelope containing:
+
+- `executionId` — stable identifier for this turn. Use it to retrieve the full [Emission Surface](/docs/guides/emission-surface) later via `GET /world/{worldId}/turns/{turnId}/surface`.
+- `output.kind` — `"emission_surface"` for inference turns.
+- `output.surface` — the complete Emission Surface (8-layer structured output). You can also request this with `?layers=` to project specific layers.
+- `output.turnId` and `output.packetId` — identifiers for the turn and the ThoughtPacket committed to the graph.
+
+Replaying the same `idempotencyKey` returns the cached result without running a new inference turn.
 
 ---
 
@@ -126,7 +133,9 @@ Returns the job envelope with current status (`queued`, `running`, `completed`, 
 
 ## GET /world/\{worldId\}/turns/\{turnId\}/surface
 
-Retrieve the **Emission Surface** for a completed inference turn. The Emission Surface is the structured 8-layer response document the world produces after reasoning — it contains everything from raw claims and evidence to narrative chatter, structured data extracts, and confidence annotations. Think of it as the full, layered output of one round of world-thinking.
+Retrieve the **Emission Surface** for a completed inference turn. The Emission Surface is the structured 8-layer document the world produces after reasoning — it carries the prose output, every entity and setting the persona referenced, resolved imagery, atmospheric signals from settings, retrieval density metrics, epistemic claims with confidence, and session state that persists across turns.
+
+This is the canonical output of a reasoning turn. Everything a renderer, agent, or downstream application needs to work with the world's cognitive output lives in this document. See the [Emission Surface Guide](/docs/guides/emission-surface) for a complete field-by-field reference.
 
 **Auth:** Bearer or session
 
@@ -134,25 +143,37 @@ Retrieve the **Emission Surface** for a completed inference turn. The Emission S
 
 | Param | Description |
 |-------|-------------|
-| `layers` | Comma-separated list of layers to project. Without this parameter, the endpoint returns the raw JSON of the entire surface. |
+| `layers` | Comma-separated list of layers to include. Without this, returns the full surface. The `identity` layer is always included regardless of what you request. |
 
 ### Available Layers
 
-The surface is organized into layers that separate different aspects of the persona's output. You can request only the layers you need to reduce payload size and focus your processing:
+The eight layers of the Emission Surface, each serving a distinct purpose:
 
-- `claims` — Factual assertions the persona derived from the knowledge graph
-- `chatter` — Natural-language narrative and explanatory text
-- `evidence` — Source references and supporting data the persona drew on
-- `topology` — Structural relationships and graph connections discovered
-- `speculation` — Hypothetical bridges and tentative reasoning
-- `confidence` — Per-claim confidence scores and uncertainty markers
-- `metadata` — Turn timing, token counts, and execution metadata
-- `directives` — Follow-up actions or suggested next queries
+| Layer | What It Contains |
+|-------|------------------|
+| `identity` | Turn provenance: who triggered it, when, execution IDs, directive context. Always included. |
+| `text` | The persona's prose output: finalized annotated text (with inline entity tags), clean text (tags stripped), and parsed mention spans with character offsets. |
+| `refs` | The full retrieval universe (catalog), accepted refs the persona used, and anomalies (rejected refs). Each entry carries a navigable API `href`. |
+| `media` | Image bundles per entity/setting (ranked by relevance tier) and per-mention placements that map images to specific text positions based on sentence context. |
+| `context` | Structured atmosphere from the dominant setting (sound, smell, light, temperature, tactile, horizon), canonical setting with confidence scoring, semantic scene profile, music reference, shader/environment selection text, and derivation mode. |
+| `topology` | Retrieval density classification (`dense`/`moderate`/`sparse`/`void`), score statistics, per-index result counts (entity/setting/textchunk), seed/expanded/inferential counts, and anchors that drove retrieval. |
+| `epistemic` | Uncertainty score (0=grounded, 1=speculative), support score, reasoning mode (`answer`/`explore`/`bridge`/`canonize`), factual claims with confidence, and detected contradictions with severity. |
+| `session` | Cross-turn state: turn count, entity momentum, accumulated claims, open threads, warm summaries. This layer persists between turns; all others reset. |
+
+### Example
+
+```bash
+# Get just the text, refs, and context layers
+curl "https://www.starholder.xyz/api/v1/world/starholder_main/turns/turn_abc123/surface?layers=text,refs,context" \
+  -H "Authorization: Bearer $API_KEY"
+```
 
 ### Response Modes
 
-- **Without `layers`:** Raw JSON body of the entire surface (all 8 layers)
-- **With `layers`:** Wrapped projected JSON containing only the requested layers
+- **Without `layers`:** Full surface in the compacted wire format (all 8 layers)
+- **With `layers`:** Projected response containing only the requested layers plus `identity`
+
+The wire format compacts refs into a keyed map and strips the streaming text buffer. See the [Emission Surface Guide](/docs/guides/emission-surface) for wire format details.
 
 ---
 
