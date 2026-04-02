@@ -65,12 +65,11 @@
 }
 
 @media (min-width: 80rem) {
-  #nd-page {
-    padding-top: 0 !important;
-  }
-
-  #nd-toc {
-    padding-top: 0 !important;
+  /* Align all three columns to the same baseline */
+  #nd-page,
+  #nd-toc,
+  [data-sidebar-placeholder] {
+    padding-top: 1.5rem !important;
   }
 }
 
