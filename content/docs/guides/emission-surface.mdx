@@ -1,172 +1,191 @@
 ---
 title: The Emission Surface
-description: A complete field-by-field guide to the structured output the world produces every time it thinks.
+description: A complete field-by-field guide to the structured output the world produces every time it thinks — from the wire format to what each field means for builders.
 ---
 
 ## What the Emission Surface Is
 
 Every time someone asks the world a question — whether through the browser, the REST API, an MCP tool, or a directive — the Protocol Emission Engine (PEE) runs an inference turn. The output of that turn is not a chat message. It is a structured, layered document called the **Emission Surface**.
 
-The Emission Surface carries everything a consumer needs to present, analyze, or build on what the world just thought: the prose response, every entity and setting the reasoning touched, resolved imagery for each, atmospheric signals from the settings involved, how dense or sparse the territory is, what claims were made and how confident the system is about them, and session context that carries forward into the next turn.
+The Emission Surface carries everything a consumer needs to present, analyze, or build on what the world just thought: the prose response, every entity and setting the reasoning touched, resolved imagery for each, atmospheric signals from the settings involved, how dense or sparse the territory is, what claims were made and how confident the system is, and session context that carries forward into the next turn.
 
-This is what makes Starholder's output a media substrate rather than a text response. A documentary agent reads the prose and media layers. A podcast agent reads the prose and epistemic layers. An interactive experience reads the refs and topology layers. A research tool reads the claims and contradictions. They are all consuming the same document — they just use different parts of it.
+This is what makes Starholder's output a media substrate rather than a text response. A documentary agent reads the prose and media layers. A podcast agent reads the prose and epistemic layers. An interactive experience reads the refs and topology layers. A research tool reads the claims and contradictions. They all consume the same document — they just use different parts of it.
 
 Schema identifier: `starholder.emission.v1`
 
 ---
 
-## The Eight Layers
+## How to Get the Emission Surface
 
-The Emission Surface is always an object with exactly eight layers. Every layer is always present, though individual fields within a layer may be null when the data doesn't apply to this turn.
+Three transport options, same payload:
+
+| Transport | Endpoint | Best For |
+|-----------|----------|----------|
+| **SSE (streaming)** | `GET /api/v1/world/{worldId}/stream` | Live rendering, real-time UIs. Events arrive incrementally during generation. |
+| **Sync JSON** | `POST /api/v1/world/{worldId}/execute` | One-shot agent calls. The complete surface arrives in a single response. |
+| **Snapshot retrieval** | `GET /api/v1/world/{worldId}/turns/{turnId}/surface` | Historical retrieval, debugging, analytics. Fetch any completed turn. |
+
+### The Wire Format
+
+The `surface_complete` event and the sync JSON response use a **compacted wire format** to reduce payload size. Key differences from the internal representation:
+
+- **Refs** are a keyed map (`Record<string, WireSurfaceRef>`) instead of separate catalog/accepted/anomaly arrays. Each ref entry carries `href`, `score`, `spans` (character offsets into clean text), and an optional `status: 'anomaly'` flag.
+- **Text** drops `streamingRaw` (which only exists during live streaming) and `mentions` (which are reconstructed from the ref spans on the client).
+- **Context** uses `priorityRefKeys` instead of `priorityTerms`, and `primarySubjectRef` (a ref string) instead of the full `primarySubject` object.
+- **Session** uses `activeFactKeys` instead of `activeFacts`, and warm summaries use `coveredRefKeys` instead of `coveredRefs`.
+
+You can request specific layers with `?layers=text,refs,context` on any endpoint. The `identity` layer is always included.
+
+---
+
+## The Eight Layers
 
 | Layer | What It Tells You |
 |-------|-------------------|
 | **identity** | Who produced this turn, when, under what directive, and with what authority |
-| **text** | The prose response in four forms: streaming raw, annotated with entity tags, clean for display, and parsed mention spans |
-| **refs** | Everything the system considered during retrieval, what it actually used, and what it rejected |
-| **media** | Resolved imagery for each entity and setting, positioned against specific mentions in the text |
-| **context** | Atmospheric signals from the settings involved — sounds, smells, light, temperature — plus shader hints and music |
-| **topology** | How dense or sparse the retrieval territory is, what drove the retrieval, and how confident the grounding is |
-| **epistemic** | What claims were made, how confident the system is, and whether any contradictions were detected |
-| **session** | Cross-turn state: what the conversation has covered so far, what threads remain open, which entities have momentum |
+| **text** | The prose response: streaming raw (during generation), annotated with entity tags, clean for display, and parsed mention spans |
+| **refs** | Everything the system considered, what it used, and what it rejected — with navigable API links |
+| **media** | Resolved imagery per entity/setting, positioned against specific mentions in the text |
+| **context** | Atmosphere from the dominant setting (sounds, smells, light, temperature, horizon), shader/environment hints, music, and semantic scene profiling |
+| **topology** | Retrieval density, confidence metrics, what drove the retrieval, and how much prior reasoning exists |
+| **epistemic** | Claims made, confidence scores, uncertainty, contradictions detected, and reasoning mode |
+| **session** | Cross-turn memory: entity momentum, accumulated claims, open threads, warm summaries |
 
 ---
 
 ## Identity Layer
 
-Provenance for the turn. Tells you who triggered it, when, and under what conditions.
+Provenance for the turn. Every field you need to know who triggered it, when, and under what conditions.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `turnId` | string | Unique identifier for this reasoning turn |
 | `executionId` | string | Execution run identifier (groups related operations) |
-| `packetId` | string or null | The ThoughtPacket committed from this turn. Null if the turn was aborted or commit was deferred. |
+| `packetId` | string or null | The ThoughtPacket (structured reasoning artifact) committed from this turn. Null if the turn was aborted or commit was deferred. |
 | `worldId` | string | Which world this turn ran against |
 | `sessionId` | string | Conversation session identifier |
-| `timestamp` | string | ISO 8601 timestamp of when the turn completed |
-| `turnDurationMs` | number | How long the turn took in milliseconds |
+| `timestamp` | string | ISO 8601 when the turn completed |
+| `turnDurationMs` | number | Wall-clock time for the turn in milliseconds |
 | `ownerUserId` | string | The user account that owns this action — all \$STAR earnings flow here |
-| `actorId` | string | The specific actor that triggered this turn (human, persona, or agent) |
+| `actorId` | string | The actor ref: `human:user_...`, `persona:persona_...`, or `agent:ext_...` |
 | `actorKind` | string | `human`, `persona`, or `external_agent` |
 | `apiKeyId` | string or absent | Present when an external agent triggered the turn |
-| `originSystem` | string or absent | The agent's self-reported identifier |
-| `directive` | object or absent | Present when the turn was triggered by a structured directive (see below) |
+| `originSystem` | string or absent | The agent's self-reported system name |
+| `directive` | object or absent | Present when the turn was triggered by a structured directive |
 
-**Directive fields** (when present):
+**Directive block** (when present):
 
 | Field | Description |
 |-------|-------------|
 | `directiveId` | The directive's unique ID |
 | `intent` | What the directive asked the persona to do |
-| `anchorRefs` | Entity or setting references the directive focused on |
-| `sourceGapId` | The gap coordinate that motivated this directive, if any |
-| `targetBountyId` | The bounty this directive is fulfilling, if any |
-| `mode` | Execution mode: `answer`, `explore`, `bridge`, or `canonize` |
-| `creativeDirection` | Additional creative guidance from the directive issuer |
+| `anchorRefs` | Entity or setting refs the persona should focus on |
+| `sourceGapId` | The gap coordinate motivating this directive |
+| `targetBountyId` | The bounty being fulfilled |
+| `mode` | `answer` (direct response), `explore` (open investigation), `bridge` (connect two things), `canonize` (establish facts) |
+| `creativeDirection` | Freeform creative guidance |
 
 ---
 
 ## Text Layer
 
-The persona's prose response in four parallel forms, each useful for different purposes.
+The persona's prose output in multiple parallel forms.
 
 | Field | Type | What It's For |
 |-------|------|---------------|
-| `streamingRaw` | string | The raw text as it streamed in during generation. Useful for live rendering — append each `text_delta` event here. |
-| `annotated` | string | The finalized text with inline entity tags like `[ent:starholder_main:dr_chen]`. Useful for building linked, navigable text. |
-| `clean` | string | The finalized text with all tags stripped. Ready for display, TTS, or text processing. |
-| `mentions` | array | Every entity and setting mention in the text, with exact character positions. |
+| `streamingRaw` | string | The raw text as it streamed during generation. Only present in SSE accumulation — stripped from `surface_complete` and persisted snapshots. |
+| `annotated` | string | Finalized text with inline entity tags like `[ent:starholder_main:dr_chen]`. Build navigable, linked text from this. |
+| `clean` | string | Finalized text with all tags stripped. Ready for display, TTS, search indexing, or text analysis. |
+| `mentions` | array | Every entity and setting mention with exact character positions in the clean text. |
 
 **Mention fields:**
 
 | Field | Description |
 |-------|-------------|
 | `ref` | Canonical reference (e.g., `ent:starholder_main:elara_mihai`) |
-| `type` | `ent` (entity), `set` (setting), or `txt` (story) |
-| `label` | Human-readable name: "Elara Mihai" |
-| `surfaceText` | The actual text in the prose that triggered the match |
-| `start` / `end` | Character offsets in the `clean` text — use these to highlight, link, or annotate |
-| `mentionIndex` | Which occurrence of this ref (0-based) — the same entity might appear multiple times |
+| `type` | `ent` (entity — a person, org, technology), `set` (setting — a place, era, institution), or `txt` (story reference) |
+| `label` | Human-readable name |
+| `surfaceText` | The exact words in the prose that matched |
+| `start` / `end` | Character offsets into `clean` — use these to highlight, hyperlink, or annotate |
+| `mentionIndex` | 0-based occurrence index. The same entity might appear multiple times. |
 
-**How text evolves during a turn:**
-1. During generation, `text_delta` events arrive and you append them to `streamingRaw`
-2. When generation completes, `text_replacement` arrives with the finalized `annotated` text
-3. `clean` is derived by stripping the inline tags
-4. `mentions` is parsed from the tag positions in the annotated text
+**Wire note:** In the compacted wire format, mentions are not sent separately. Instead, each ref in the refs map carries a `spans` array of `[start, end]` pairs. Reconstruct the mentions array from these spans if you need it.
 
 ---
 
 ## Refs Layer
 
-Everything the system considered, used, or rejected during this turn's reasoning.
+Everything the system considered, used, or rejected during retrieval and reasoning.
 
 ### Catalog
 
-The full retrieval universe — every entity, setting, and story the system found relevant during its graph traversal. This is the "considered" set, not just what appeared in the output.
+The full retrieval universe — every entity, setting, story, and prior reasoning packet the system found relevant during graph traversal. This is the "considered" set, not just what made it into the output.
 
 | Field | Description |
 |-------|-------------|
 | `ref` | Canonical reference |
 | `label` | Human-readable name |
-| `type` | `entity`, `setting`, or `textroot` |
-| `anchorDistance` | How far from the input anchor: 0 = direct match, 1-3 = graph hops away |
-| `relevanceScore` | How relevant this ref is to the query (0.0-1.0) |
-| `href` | API URL to fetch the full object (e.g., `/api/v1/world/{worldId}/entities/{ref}`) |
+| `type` | `entity`, `setting`, `textroot`, or `packet` (a prior ThoughtPacket from an earlier turn) |
+| `anchorDistance` | Graph distance from the input anchor: 0 = direct match, 1-3 = hops away |
+| `relevanceScore` | 0.0–1.0, how relevant this ref is to the query |
+| `href` | API URL to fetch the full object |
 
 ### Accepted
 
-The refs that actually appeared in the persona's output — the entities and settings it chose to reference while reasoning.
+Refs the persona actually referenced in its output — confirmed through validation.
 
 | Field | Description |
 |-------|-------------|
-| `ref` | Canonical reference |
-| `label` | Human-readable name |
-| `type` | `entity` or `setting` |
-| `lifecycleState` | `render_provisional` (appeared during streaming, not yet validated) or `commit_validated` (passed validation) |
-| `provenance` | How the ref entered the output: `pre_retrieval`, `mid_reasoning`, or `validator_accepted` |
-| `href` | API URL to fetch the full object |
+| `lifecycleState` | `render_provisional` (appeared during streaming, not yet validated) or `commit_validated` (passed post-generation validation) |
+| `provenance` | How it entered: `pre_retrieval` (from the initial query), `mid_reasoning` (discovered during generation), `validator_accepted` (added during validation) |
 
 ### Anomalies
 
-Refs the persona tried to use but were rejected during validation — either because they weren't found in the retrieval results or because policy forbade them.
+Refs the persona tried to use but were rejected — either not found in retrieval results or forbidden by policy.
+
+| Field | Description |
+|-------|-------------|
+| `reason` | `not_in_traversal_outputs` (the persona hallucinated a reference) or `forbidden_by_policy` (valid ref but not allowed in this context) |
+
+**Wire note:** In the compacted format, refs are a single `Record<string, WireSurfaceRef>` keyed by ref string. Anomalies have `status: 'anomaly'` and a `reason` field. Everything else is accepted. The `score` field carries the relevance score.
 
 ---
 
 ## Media Layer
 
-Resolved imagery for every entity and setting the persona referenced, plus per-mention placements that map images to specific positions in the text.
+Resolved imagery for every entity and setting referenced, with per-mention placement context.
 
 ### Bundles
 
-One bundle per referenced entity or setting. Each bundle contains the best available images, ranked and categorized.
+One bundle per referenced entity or setting, containing the best available images ranked and categorized.
 
 | Field | Description |
 |-------|-------------|
 | `ref` | The entity or setting this imagery belongs to |
-| `items[].mediaRef` | Reference to the media asset |
-| `items[].score` | Relevance score for this image (0.0-1.0) |
-| `items[].tier` | Quality tier: 0 = exact match, 1 = contextually relevant, 2 = fallback |
-| `items[].provenance` | How it was found: `direct` (tagged to this entity), `semantic` (vector similarity), `fallback` |
-| `items[].resolveHref` | URL to fetch the actual image file |
+| `items[].mediaRef` | Asset reference |
+| `items[].score` | Relevance to this entity (0.0–1.0) |
+| `items[].tier` | Quality: 0 = exact match (tagged to this entity), 1 = contextually relevant, 2 = fallback |
+| `items[].provenance` | `direct` (explicitly tagged), `semantic` (found by vector similarity), `fallback` (best available when nothing better exists) |
+| `items[].resolveHref` | URL to fetch the actual image file: `/api/media/resolve/{mediaRef}` |
 
 ### Placements
 
-Maps specific mentions in the text to specific images. If the persona mentions Dr. Chen three times, each mention can have its own best-match image based on the surrounding sentence context.
+Maps specific text mentions to specific images. If Dr. Chen is mentioned three times in different contexts, each mention gets its own best-match image based on the surrounding sentence.
 
 | Field | Description |
 |-------|-------------|
 | `ref` | The entity or setting |
 | `mentionIndex` | Which mention in the text (matches `mentions[].mentionIndex` in the Text layer) |
-| `phrase` | The surrounding sentence context that influenced image selection |
-| `primaryMediaRef` | The best image for this specific mention |
-| `score` | How well this image matches the mention context |
-| `alternates` | Other candidate images with their scores |
+| `phrase` | The surrounding sentence that influenced image selection |
+| `primaryMediaRef` | Best image for this mention in this context |
+| `score` | How well the image matches this specific mention context |
+| `alternates` | Other candidate images with scores |
 
 ---
 
 ## Context Layer
 
-Atmospheric and environmental signals extracted from the settings involved in this turn. This layer has two independent halves that serve different purposes.
+The richest layer for immersive applications. Contains atmospheric signals, environment selection hints, music, and semantic scene profiling. This layer has several independent components that serve different purposes.
 
 ### Shader / Environment Selection
 
@@ -174,57 +193,102 @@ Used by renderers to select visual environments, color palettes, and mood.
 
 | Field | Description |
 |-------|-------------|
-| `contextText` | A text blob optimized for embedding-based environment matching. Contains the turn's output text, accepted entity names, and the user's question. Always populated. |
-| `priorityTerms` | Up to 8 entity labels ordered by relevance — used for boosting media bundle scores in visual rendering. |
+| `contextText` | Embedding-ready text for environment matching. Contains the turn's output, accepted entity names, and the user's query. Always populated, even when no settings are involved. |
+| `priorityTerms` | Up to 8 entity labels ordered by relevance — used for boosting media scores in visual rendering. (Wire: `priorityRefKeys`) |
 
 ### Structured Atmosphere
 
-Sensory signals extracted from the dominant setting (the most relevant setting the persona referenced). Null when no settings were involved in the turn.
+Sensory signals extracted from the **dominant setting** — the most relevant setting the persona referenced during reasoning. These are parsed from structured descriptors stored on each setting record.
 
 | Field | Description |
 |-------|-------------|
-| `atmosphere.sound` | Ambient sound descriptions (e.g., "the gentle hum of electronic equipment") |
-| `atmosphere.smell` | Scent descriptions |
-| `atmosphere.temperature` | Temperature and climate signals |
-| `atmosphere.light` | Lighting conditions |
-| `atmosphere.tactile` | Physical texture descriptions |
-| `atmosphere.horizon` | What you'd see looking out — the visual horizon |
-| `visualSignature` | The setting's visual identity in one line |
-| `essence` | The setting's emotional/thematic core in one line |
-| `primarySubject` | The dominant entity or setting for this turn (ref + label + type) |
+| `atmosphere.sound` | Ambient sounds (e.g., "the gentle hum of electronic equipment and the distant pulse of neon lights") |
+| `atmosphere.smell` | Scent descriptions (e.g., "a faint metallic tang, reminiscent of advanced technology") |
+| `atmosphere.temperature` | Climate signals (e.g., "cool, with a subtle chill from the glass walls") |
+| `atmosphere.light` | Lighting conditions (e.g., "soft, ambient glow from the console, casting gentle reflections") |
+| `atmosphere.tactile` | Physical textures (e.g., "smooth, polished surfaces, cool to the touch") |
+| `atmosphere.horizon` | What you'd see looking out (e.g., "an unobstructed view of the city below, a lattice of light and shadow") |
+| `visualSignature` | The setting's visual identity distilled into one descriptive line |
+| `essence` | The setting's emotional and thematic core in one line (e.g., "a sanctuary of digital echoes and contemplative light") |
+
+When no settings are referenced in the turn, all atmosphere fields are `null`. This is correct — there is no setting data to surface. Shader selection still works because `contextText` is always populated from the output text and entity labels.
+
+### Canonical Setting
+
+The dominant setting that atmosphere was extracted from, with confidence scoring.
+
+| Field | Description |
+|-------|-------------|
+| `canonicalSetting.ref` | Setting ref |
+| `canonicalSetting.label` | Human-readable name |
+| `canonicalSetting.confidence` | How confident the system is that this is the right setting for this turn |
+| `canonicalSetting.scoring` | Detailed breakdown: `retrievalScore`, `sceneSimilarity`, `lexicalAlignment`, `mismatchPenalty`, `finalScore` |
+
+### Semantic Scene Profile
+
+A structured analysis of the turn's semantic content, categorized into thematic phrase buckets. Useful for advanced rendering that adapts to the semantic character of the turn.
+
+| Field | Description |
+|-------|-------------|
+| `semanticSceneProfile.phrasesByCategory` | Key phrases organized by thematic category (e.g., "technology", "conflict", "nature") |
+| `semanticSceneProfile.signaturesByCategory` | Detailed signatures per category with `phrase`, `score`, `phraseType`, `sourceText`, `sourceSegmentId`, and `sentenceImportance` |
+
+### Derivation Mode
+
+How the context layer was assembled — useful for debugging and quality assessment.
+
+| Value | Meaning |
+|-------|---------|
+| `semantic` | Normal path — atmosphere extracted from semantically matched settings |
+| `setting_surface_fallback` | Settings were found but semantic matching failed; fell back to surface-level extraction |
+| `lexical_emergency` | Last resort — no semantic or setting match; used lexical heuristics |
 
 ### Music
+
+Server-side music selection based on phrase extraction from the turn's output.
 
 | Field | Description |
 |-------|-------------|
 | `musicRef.ref` | Audio asset reference |
-| `musicRef.resolveHref` | URL to fetch the audio file |
-| `musicRef.confidence` | How well this track matches the turn's mood |
+| `musicRef.resolveHref` | URL to stream or download the audio |
+| `musicRef.confidence` | How well this track matches the turn's mood (0.0–1.0) |
 | `musicRef.queryPhrase` | The phrase extracted from the turn that drove the music search |
+
+### Primary Subject
+
+The dominant entity or setting for this turn — the "main character" of this particular reasoning act.
+
+| Field | Description |
+|-------|-------------|
+| `primarySubject.ref` | Canonical reference |
+| `primarySubject.label` | Human-readable name |
+| `primarySubject.type` | `entity` or `setting` |
+
+Selection priority: dominant setting (if any) > highest-relevance entity > null.
 
 ---
 
 ## Topology Layer
 
-How dense or sparse the retrieval territory is. This tells you whether the persona is reasoning in well-explored territory with rich context, or venturing into thin regions where the graph has connections but little narrative content.
+Retrieval quality metrics. Tells you how dense or sparse the territory is, what drove the retrieval, and how much prior reasoning the persona had to build on.
 
 | Field | Description |
 |-------|-------------|
-| `resultCount` | Total number of retrieval results found |
+| `resultCount` | Total retrieval results found |
 | `meanScore` | Average relevance score across all results |
-| `topScore` | Highest relevance score (best match) |
-| `bottomScore` | Lowest relevance score (weakest match in the set) |
-| `scoreStdDev` | How spread out the scores are — high std dev means a mix of strong and weak matches |
-| `sparsity` | Overall density classification: `dense` (rich territory), `moderate`, `sparse` (thin territory), `void` (almost nothing found) |
-| `perIndex.entity` | How many results came from entity indexes |
-| `perIndex.setting` | How many results came from setting indexes |
-| `perIndex.textchunk` | How many results came from story content indexes |
-| `seedCount` | How many retrieval seeds (starting points) were used |
-| `expandedCount` | How many candidates were found through graph expansion from those seeds |
-| `inferentialCount` | How many prior ThoughtPackets were found as retrievable context (this is the compounding effect in action) |
-| `anchors` | The starting points for this turn's retrieval, with how they were resolved |
+| `topScore` | Best match relevance (0.0–1.0) |
+| `bottomScore` | Weakest match in the result set |
+| `scoreStdDev` | Score spread — high std dev means a mix of strong and weak matches |
+| `sparsity` | Density classification: `dense`, `moderate`, `sparse`, `void` |
+| `perIndex.entity` | Results from entity indexes |
+| `perIndex.setting` | Results from setting indexes |
+| `perIndex.textchunk` | Results from story content indexes |
+| `seedCount` | Retrieval seeds (starting points) used |
+| `expandedCount` | Candidates found through graph expansion from seeds |
+| `inferentialCount` | Prior ThoughtPackets found as retrievable context — **this is the compounding effect.** High numbers mean the persona is building on a rich foundation of prior reasoning. Low numbers mean it's mostly working from source material. |
+| `anchors` | Starting points for retrieval, each with a `source`: `direct_canonical_name` (matched by name), `hot_frontier` (from session momentum), or `seed` (from a seed signal) |
 
-**How to use this:** If `sparsity` is `sparse` or `void`, the persona is working in thin territory — the output may be more speculative and less grounded. If `inferentialCount` is high, the persona is building on a rich foundation of prior reasoning. Entertainment products can use this to frame output: "We're venturing into uncharted territory here" vs "This connection is well-documented."
+**For builders:** Use `sparsity` to frame output confidence. If it's `void`, warn users they're in uncharted territory. If `inferentialCount` is high, the output is well-grounded in prior analysis. Entertainment products can narrate this: "This connection is well-documented across seventeen prior explorations" vs "We're venturing into thin territory here — the historical record is sparse."
 
 ---
 
@@ -235,98 +299,117 @@ What the persona claims to know and how confidently it knows it.
 | Field | Description |
 |-------|-------------|
 | `uncertainty` | 0.0 = fully grounded in retrieved evidence, 1.0 = pure speculation |
-| `supportScore` | How strongly the retrieved evidence supports the output (inverse of uncertainty, but weighted differently) |
-| `mode` | The reasoning mode: `answer` (direct response), `explore` (open-ended investigation), `bridge` (connecting two entities), `canonize` (establishing new facts) |
-| `intentTags` | Descriptive tags for the reasoning intent (e.g., `factual_answer`, `depth_synthesis`, `bridge_discovery`) |
+| `supportScore` | Evidence grounding strength — how well the retrieved material supports the output |
+| `mode` | Reasoning mode: `answer` (direct response), `explore` (open-ended), `bridge` (connecting entities), `canonize` (establishing new facts) |
+| `intentTags` | Descriptive tags: `factual_answer`, `depth_synthesis`, `bridge_discovery`, etc. |
 
 ### Claims
 
-Specific factual assertions the persona made during reasoning, with the entities they cite and confidence scores.
+Specific factual assertions the persona made, with the evidence backing them.
 
 | Field | Description |
 |-------|-------------|
 | `text` | The verbatim claim |
-| `refs` | Entity and setting references that support this claim |
-| `confidence` | 0.0-1.0 — how confident the system is in this claim |
+| `refs` | Entity and setting references that support it |
+| `confidence` | 0.0–1.0 |
 
 ### Contradictions
 
-When the persona's reasoning encounters conflicting information in the graph.
+When the persona's reasoning encounters conflicting information in the knowledge graph.
 
 | Field | Description |
 |-------|-------------|
-| `claimA` | One side of the conflict |
-| `claimB` | The other side |
-| `severity` | `reconcilable` (both can be true — different perspectives, timeline evolution) or `irreconcilable` (logical impossibility) |
+| `claimA` / `claimB` | The two conflicting claims |
+| `severity` | `reconcilable` (both can be true — different perspectives, unreliable narration, timeline evolution) or `irreconcilable` (logical impossibility) |
 
-**How to use this:** Contradictions are not errors — they are narrative texture. A podcast agent might frame reconcilable contradictions as "competing accounts." A documentary agent might present both sides. An interactive experience might let the user investigate further.
+**For builders:** Contradictions are narrative texture, not errors. A podcast frames reconcilable contradictions as "competing accounts." A documentary presents both sides. An interactive experience lets users investigate. Only irreconcilable contradictions indicate actual data quality issues.
 
 ---
 
 ## Session Layer
 
-State that accumulates across turns within a conversation. This is what gives multi-turn interactions coherence — the system remembers what it has discussed, what entities keep coming up, and what threads remain unresolved.
+Accumulated state across turns. This is what gives multi-turn conversations coherence.
 
 | Field | Description |
 |-------|-------------|
-| `turnCount` | How many turns have occurred in this session |
-| `activeFacts` | Entity and setting refs that are grounded in prior output — the session's established knowledge |
-| `entityMomentum` | Which entities keep appearing across turns, weighted by recency and frequency. High-momentum entities are the session's "main characters." |
-| `accumulatedClaims` | Every claim made across all turns, with the turn number it was introduced. Useful for tracking how the conversation's understanding evolved. |
-| `openThreads` | Questions or topics raised but not yet fully addressed. Status is `open`, `partially_addressed`, or `resolved`. |
-| `warmSummaries` | Condensed summaries of each prior turn — what the user asked, what the system concluded, what refs were covered. |
+| `turnCount` | Turns completed in this session |
+| `activeFacts` | Entity and setting refs established as grounded knowledge in prior turns |
+| `entityMomentum` | Which entities keep appearing, weighted by recency and frequency. High-momentum entities are the session's "main characters." Each entry has `ref` and `weight`. |
+| `accumulatedClaims` | Every claim across all turns, with `turn` number, `confidence`, and cited `refs`. Track how understanding evolved. |
+| `openThreads` | Unresolved questions or topics. Each has `text`, `status` (`open`, `partially_addressed`, `resolved`), and `introducedAtTurn`. |
+| `warmSummaries` | Condensed per-turn summaries: what the user asked (`queryIntent`), what the system concluded (`summary`), and what refs were covered. |
 
-**What carries forward between turns:** The session layer persists. When a new turn starts, `identity`, `text`, `refs`, `media`, `context`, `topology`, and `epistemic` all reset to empty. The session layer carries forward from the prior turn.
+**What resets between turns:** `identity`, `text`, `refs`, `media`, `context`, `topology`, `epistemic` — all reset to empty when a new turn starts.
 
-**What `surface_complete` does:** When you receive the `surface_complete` event, it replaces the entire accumulated surface — including the session layer — with the server's authoritative snapshot. This is your consistency checkpoint.
+**What persists:** The `session` layer carries forward. The system remembers the conversation's accumulated knowledge, momentum, and open threads.
 
----
-
-## How to Get the Emission Surface
-
-Three transport options, same payload:
-
-| Transport | Endpoint | Best For |
-|-----------|----------|----------|
-| **SSE (streaming)** | `GET /api/v1/world/{worldId}/stream` | Live rendering, real-time UIs. You receive events incrementally and accumulate. |
-| **Sync JSON** | `POST /api/v1/world/{worldId}/execute` | One-shot agent calls. You get the complete surface in a single response. |
-| **Snapshot retrieval** | `GET /api/v1/world/{worldId}/turns/{turnId}/surface` | Historical retrieval, debugging, analytics. Fetch any past turn's surface. |
-
-### Layer Projection
-
-You don't always need all eight layers. Request specific layers with `?layers=text,refs,context` on any endpoint that returns a surface. The `identity` layer is always included regardless of what you request.
+**`surface_complete` is authoritative:** When received, it replaces everything — including the session layer — with the server's canonical snapshot.
 
 ---
 
 ## SSE Event Lifecycle
 
-When consuming via SSE, events arrive in this order during a single turn:
+When consuming via the streaming endpoint, events arrive in this order during a single turn:
 
 | Phase | Events | What's Happening |
 |-------|--------|------------------|
-| **Streaming** | `text_delta` (repeated) | The persona is generating prose. Append each delta to build the live text. |
-| **Streaming** | `ref_accepted`, `ref_media_bundle` | Between generation bursts, the system flushes entity references and their resolved imagery. |
-| **Finalization** | `text_replacement` | Generation is complete. This carries the finalized annotated text — it replaces the streaming raw text as the authoritative version. |
-| **Finalization** | `ref_anomaly` | Any refs that failed validation are reported. |
-| **Finalization** | `media_placement_map` | Per-mention image placements are resolved against the final text. |
-| **Finalization** | `atmosphere_context` | Atmospheric signals extracted from the dominant setting. |
-| **Commit** | `thoughtpacket_committed` | The ThoughtPacket (the structured reasoning artifact) has been committed to the knowledge graph. |
-| **Commit** | `contradiction_detected` | Any conflicting claims found during reasoning. |
-| **Terminal** | `surface_complete` | The full, authoritative Emission Surface snapshot. This replaces your accumulated state. The turn is done. |
+| **Streaming (S1)** | `text_delta` (repeated) | The persona is generating prose. Append each delta to build live text. |
+| **Streaming (S1)** | `ref_accepted` (render_provisional) | Between generation bursts, entity references the persona has touched are flushed via a sideband queue. |
+| **Streaming (S1)** | `ref_media_bundle` | Imagery resolved for those entities, also sideband-flushed between LLM read cycles. |
+| **Finalization (S1 close)** | `text_replacement` | Generation complete. The finalized annotated text replaces the streaming raw text as truth. |
+| **Validation (S2)** | `ref_accepted` (commit_validated) | Refs that passed post-generation validation. |
+| **Validation (S2)** | `ref_anomaly` | Refs that failed validation (hallucinated or policy-forbidden). |
+| **Post-generation** | `media_placement_map` | Per-mention image placements resolved against the final text. |
+| **Post-generation** | `atmosphere_context` | Full Context layer: atmosphere, canonical setting, music, scene profile. |
+| **Commit (S3)** | `thoughtpacket_committed` | The ThoughtPacket has been written to the knowledge graph. Carries epistemic data. |
+| **Commit (S3)** | `contradiction_detected` | Conflicts found during reasoning (if any). |
+| **Terminal** | `surface_complete` | The full, authoritative Emission Surface in wire format. This is the turn's final word. |
+
+### PEE Inner Events
+
+These events arrive wrapped in a `pee_event` envelope on the hub stream. They provide additional operational visibility:
+
+| Event | Description |
+|-------|-------------|
+| `budget_warning` | The turn is approaching a resource limit (`dimension`, `remaining`, `threshold`) |
+| `engine_error` | A recoverable or non-recoverable error during reasoning |
+| `turn_committed` | The PEE terminal signal — ThoughtPacket written, turn complete |
+| `turn_aborted` | The turn failed and no ThoughtPacket was committed |
+| `commit_deferred` | Commit was delayed (e.g., pending governance review) |
+| `story_materialization_ready` | The system detected enough accumulated reasoning to suggest a story could be materialized from this topic |
+| `thoughtpacket:draft:complete` | A draft prose rendering of the ThoughtPacket was completed |
+
+### Hub-Only Events
+
+These appear only on the browser hub stream (`POST /api/world-program/hub`), not on the external agent stream:
+
+| Event | Description |
+|-------|-------------|
+| `wig_frame` | World Interaction Governor state — routing decisions, inflection points, suggestions |
+| `prompt_payload` | The full context payload that was sent to the LLM (debugging/transparency) |
+| `star:balance_changed` | Real-time \$STAR balance update for the authenticated user |
+| `bounty_workbench_open` | A bounty workflow was activated |
+| `bounty_draft_trigger` | A gap-to-bounty drafting flow was triggered |
+
+### External-Only Events
+
+| Event | Description |
+|-------|-------------|
+| `timeout` | 300 seconds of idle — the stream will close. Reconnect with `Last-Event-ID` or `?lastSeq=`. |
 
 ---
 
 ## Quick Reference: Event to Layer Mapping
 
-| SSE Event | Layer Affected | How It Accumulates |
-|-----------|----------------|-------------------|
+| SSE Event | Layer Affected | Accumulation |
+|-----------|----------------|--------------|
 | `text_delta` | text.streamingRaw | Append |
-| `text_replacement` | text.annotated, text.clean, text.mentions | Replace |
+| `text_replacement` | text.annotated, clean, mentions | Replace |
 | `ref_accepted` | refs.accepted | Upsert by ref |
 | `ref_anomaly` | refs.anomalies | Append |
 | `ref_media_bundle` | media.bundles | Upsert by ref |
 | `media_placement_map` | media.placements | Upsert by (ref, mentionIndex) |
-| `atmosphere_context` | context | Replace entire layer |
-| `thoughtpacket_committed` | epistemic | Merge (partial update) |
+| `atmosphere_context` | context (all fields) | Replace entire layer |
+| `thoughtpacket_committed` | epistemic | Merge |
 | `contradiction_detected` | epistemic.contradictions | Append |
 | `surface_complete` | All layers | Replace entire surface |
