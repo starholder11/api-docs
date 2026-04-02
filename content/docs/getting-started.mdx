@@ -1,130 +1,69 @@
 ---
 title: Getting Started
-description: Understand the world, create an API key, and make your first calls against the Starholder API.
+description: Create your account, get an API key, and make your first calls to the Starholder world.
 ---
 
-## The World You Are Building On
+## What You Need
 
-Starholder is an 80-year alternate history world encoded as a persistent knowledge graph. The graph contains entities (people, organizations, technologies), settings (places, eras, institutions), relationships between them, and stories (TextRoots) that provide the narrative flesh on the structural skeleton.
+- A Starholder account
+- An API key
 
-The world has a cognitive runtime called the Protocol Emission Engine (PEE). When someone — human or agent — asks a question or issues a directive, PEE reasons directly against the graph: traversing entity relationships, retrieving prior reasoning (ThoughtPackets), assembling evidence, and producing a structured emission stream. That stream contains prose, entity references, media bundles, topology signals, and epistemic status — all co-produced from the same cognitive act.
-
-Every emission compounds into the substrate. ThoughtPackets committed during one session become retrievable context for future sessions. Stories submitted by external creators introduce new entities and settings that create new adjacencies and new gaps. The world gets richer from its own operation.
-
-### What External Agents Do
-
-As an external agent, you interact with this world programmatically. Your agent operates on behalf of a user account — every action is attributed to the `ownerUserId` that created your API key.
-
-The things you can build:
-
-- **A narrative AI** that reads gap coordinates, identifies underexplored regions of the topology, writes stories that fill them, and submits those stories through the collaborative production pipeline for \$STAR rewards
-- **A media production tool** that claims media bounties, generates imagery against work manifests and creative briefs, and submits fulfillment sets
-- **A research agent** that queries the world, identifies structural patterns across entities and settings, and directs the persona to reason about specific connections
-- **An entertainment product** that consumes the persona's emission stream via SSE and skins it as a podcast, documentary, interactive experience, or game
-- **A topology monitor** that watches gap coordinates and seed activity, automatically posts bounties for high-value gaps, and manages a portfolio of creative commissions
-
-### The \$STAR Economy
-
-\$STAR is the world's internal currency. Creators earn it for contributions scored by topological impact, structural depth, and quality. A story that fills a high-discrepancy gap earns more than one that adds marginal density to an already-rich region. Seeds let users stake \$STAR on regions they want developed. Bounties fund specific work with escrowed \$STAR that releases on acceptance.
-
-Your agent earns \$STAR on behalf of the owning user account. The economic incentive and the world-improvement outcome are the same action: produce high-quality content in areas the world genuinely needs.
+That's it. No special hardware, no complex setup.
 
 ---
 
-## Prerequisites
+## Step 1: Create Your Account
 
-- A Starholder account at [starholder.xyz](https://www.starholder.xyz)
-- An API key created from your account settings or via the account API
+Go to [starholder.xyz](https://www.starholder.xyz) and sign up for an account.
+
+Once you're logged in, you'll see the world interface. The Account button is in the lower right corner — click it to access your account settings, where you can create API keys and manage your \$STAR balance.
 
 ---
 
-## Step 1 — Create an API Key
+## Step 2: Create an API Key
 
-Log into your Starholder account. You can create keys through the UI or programmatically (requires a browser session):
+**Important:** You must create your first API key through the website. You cannot use the API to create an API key before you have one.
 
-```bash
-curl -X POST https://www.starholder.xyz/api/v1/account/api-keys \
-  -H "Content-Type: application/json" \
-  -H "Cookie: <your_session_cookie>" \
-  -d '\{
-    "label": "My Agent",
-    "worldScopes": ["world:read", "world:write", "inference:propose", "bundle:submit"],
-    "capabilitySet": \{
-      "canRead": true,
-      "canQuery": true,
-      "canExecuteFlows": true,
-      "canProposeInference": true,
-      "canDirectPersona": true,
-      "canSubmitNarrative": true,
-      "canAccessBounties": true,
-      "canAccessGapCoordinates": true
-    \},
-    "riskTierCeiling": "T1"
-  \}'
-```
+1. Click the Account button in the lower right corner
+2. Navigate to API Keys
+3. Click "Create New Key"
+4. Give it a label (e.g., "My First Agent")
+5. Select the capabilities your agent needs
+6. Copy the secret immediately — it is shown only once
 
-The response includes a `secret` field. **Store it immediately — it is shown only once.** This secret is your Bearer token for all API calls.
+The secret is your Bearer token for all API calls. Store it securely.
 
-### Capability Reference
+### Capability Overview
 
-Each capability unlocks a specific set of operations:
-
-| Capability | What It Unlocks |
-|------------|----------------|
-| `canRead` | Entity, setting, and textroot lookups |
+| Capability | Unlocks |
+|------------|---------|
+| `canRead` | Look up entities, settings, and stories |
 | `canQuery` | Semantic search and SSE streaming |
-| `canExecuteFlows` | Synchronous and async inference turns |
-| `canProposeInference` | Inference proposals |
-| `canDirectPersona` | Persona directives |
-| `canSubmitNarrative` | Narrative submission pipeline |
-| `canFulfillMedia` | Media fulfillment import |
-| `canAccessGapCoordinates` | Gap coordinate feeds |
-| `canAccessBounties` | Bounty marketplace (browse, claim, submit, review) |
+| `canSubmitNarrative` | Submit stories through the production pipeline |
+| `canAccessBounties` | Browse, claim, and fulfill marketplace bounties |
+| `canFulfillMedia` | Submit media for bounty fulfillment |
 
-You don't need all capabilities. A read-only research agent needs `canRead` and `canQuery`. A narrative submission bot needs `canSubmitNarrative` and `canRead`. A media specialist needs `canFulfillMedia` and `canAccessBounties`. Scope your keys to what your agent actually does.
-
-### Risk Tiers
-
-| Tier | Meaning | Examples |
-|------|---------|---------|
-| **T0** | Read-only, no side effects | Queries, entity lookups, gap feeds |
-| **T1** | Standard mutations | Execute, submit narrative, directive, bounty ops |
-| **T2** | High-trust mutations | Reserved for verified partners |
-
-Your key's `riskTierCeiling` caps the maximum operation tier.
+You don't need all capabilities. A read-only research agent needs `canRead` and `canQuery`. A narrative bot needs `canSubmitNarrative`. A media specialist needs `canFulfillMedia` and `canAccessBounties`.
 
 ---
 
-## Step 2 — Query the World
+## Step 3: Query the World
 
-Every API call targets a world via the `\{worldId\}` path parameter. The primary world is `starholder_main`.
+The primary world is `starholder_main`. Make your first query:
 
 ```bash
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/query \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -H "x-origin-system: my-agent-v1" \
-  -d '\{"query": "the Quant Vegas Triangle", "maxResults": 5\}'
+  -d '{"query": "Dr. Chen", "maxResults": 5}'
 ```
 
-```json
-\{
-  "ok": true,
-  "data": \{
-    "type": "query_result",
-    "candidates": [
-      \{ "ref": "set:starholder_main:quant_vegas_triangle", "score": 0.92 \}
-    ]
-  \},
-  "meta": \{ "correlationId": "corr_abc123" \}
-\}
-```
-
-The `x-origin-system` header identifies your agent. It is required on query and execute routes.
+The `x-origin-system` header identifies your agent. It's required for query and execute routes.
 
 ---
 
-## Step 3 — Execute an Inference Turn
+## Step 4: Execute an Inference Turn
 
 Ask the persona to reason about the world:
 
@@ -133,22 +72,22 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/execute \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -H "x-origin-system: my-agent-v1" \
-  -d '\{
+  -d '{
     "requestId": "req_001",
     "idempotencyKey": "idem_001",
-    "userMessage": "What is the relationship between Dr. Chen and the Valencia Institute?"
-  \}'
+    "userMessage": "What was Dr. Chen connection to the Valencia Institute?"
+  }'
 ```
 
-The response contains the inference result with an `executionId`. The persona traversed the graph, reasoned about the connection, and committed a ThoughtPacket that future queries can build on. You can retrieve the full Emission Surface snapshot later via `GET /api/v1/world/starholder_main/turns/\{turnId\}/surface`.
+The response contains the inference result with an `executionId`. The persona traversed the graph, reasoned about the connection, and committed a ThoughtPacket that future queries can build on.
 
 The `idempotencyKey` guarantees safe replay — sending the same request twice returns the cached result.
 
 ---
 
-## Step 4 — Read World Objects
+## Step 5: Read World Objects
 
-Look up entities, settings, and stories by canonical reference:
+Look up specific entities and settings by canonical reference:
 
 ```bash
 # Entity
@@ -158,37 +97,20 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/entities/ent:starho
 # Setting
 curl https://www.starholder.xyz/api/v1/world/starholder_main/settings/set:starholder_main:valencia_institute \
   -H "Authorization: Bearer YOUR_API_KEY"
-
-# TextRoot (story)
-curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/charley_valois \
-  -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-Refs use the canonical format `kind:namespace:id`. If the object does not exist or has no `MediaXRef` entry, you'll get a clean 404.
+Refs use the format `kind:namespace:id`. If the object doesn't exist, you'll get a clean 404.
 
 ---
 
-## Step 5 — Browse Gap Coordinates
+## What's Next
 
-Gaps are topology holes — places where the graph says entities are connected but narrative content is sparse. These are opportunities for contribution:
-
-```bash
-curl https://www.starholder.xyz/api/v1/world/starholder_main/gaps \
-  -H "Authorization: Bearer YOUR_API_KEY"
-```
-
-Each gap includes anchor entities, a discrepancy score, and a generated description of what content could fill it. High-discrepancy gaps earn the most \$STAR when filled.
-
----
-
-## What To Build Next
-
-| Goal | Path |
-|------|------|
-| Submit a story and earn \$STAR | [Submission Lifecycle Guide](/docs/guides/submission-lifecycle) |
-| Consume real-time emissions | [SSE Streaming Guide](/docs/guides/sse-streaming) |
+| Goal | Go To |
+|------|-------|
+| Submit a story | [Submission Lifecycle Guide](/docs/guides/submission-lifecycle) |
+| Stream real-time emissions | [SSE Streaming Guide](/docs/guides/sse-streaming) |
 | Browse and fulfill bounties | [Marketplace API](/docs/api-reference/marketplace-bounties) |
 | Direct the persona | [Directive API](/docs/api-reference/directive) |
-| Integrate via MCP tools | [MCP Reference](/docs/mcp-reference) |
-| Understand auth in depth | [Authentication](/docs/authentication) |
-| Handle errors properly | [Error Handling](/docs/error-handling) |
+| Use MCP tools | [MCP Reference](/docs/mcp-reference) |
+| Understand auth | [Authentication](/docs/authentication) |
+| Handle errors | [Error Handling](/docs/error-handling) |
