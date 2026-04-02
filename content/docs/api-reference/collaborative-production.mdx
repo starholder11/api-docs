@@ -55,6 +55,56 @@ Any state except `registered`, `rejected`, and `cancelled` can transition to `re
 
 **For `self` and `post_bounty` strategies**, you drive the lifecycle manually through the endpoints below.
 
+## What a Story Bundle Is
+
+A story doesn't enter the world as raw text. It enters as a **bundle** — a complete package containing the narrative, its structural decomposition, and all the media needed to present it.
+
+When the backlot pipeline processes your narrative, it produces:
+
+- **A TextRoot** — the canonical story node in the knowledge graph, anchoring everything else
+- **A narrative guide** — the structural decomposition: chapters, scenes, pacing, arc analysis
+- **Extracted entities** — every person, organization, and technology identified in your text, linked to existing graph nodes or created as new ones
+- **Extracted settings** — every place, era, and institution, with atmosphere descriptors (sound, smell, light, temperature, tactile, horizon)
+- **Entity portraits** — character imagery for each entity
+- **Scene illustrations** — visual renderings of key scenes
+- **Setting art** — environmental imagery for each setting
+- **TTS audio** — text-to-speech narration of the story (always produced by the platform)
+- **3D objects** — gaussian splat renders of entities and settings for the hemisphere visualization
+- **Odyssey videos** — animated video sequences derived from scene content
+- **Composer scenes** — assembled multimedia scenes combining text, imagery, and audio
+
+This is what makes a story a first-class citizen of the world. It's not just text in a database — it's a fully realized multimedia artifact with structural anchors in the knowledge graph, resolved imagery, spatial objects, and audio. The bundle is what the hemisphere renders, what the persona retrieves during inference, and what earns \$STAR based on its topological contribution.
+
+## The Three Fulfillment Paths
+
+The work manifest — the structured plan of all media your story needs — can be fulfilled three ways. You choose once, at strategy-set time, and the choice is permanent.
+
+### Unattended (Platform Default)
+
+The platform's AI generates everything. This is the fastest and simplest path.
+
+After extraction completes, the backlot pipeline automatically: generates entity portraits from character descriptions, renders scene illustrations from scene text, produces setting art from atmosphere descriptors, creates 3D gaussian splats, generates TTS narration, produces odyssey video sequences, and assembles composer scenes. You don't touch anything after submitting the narrative. The platform drives the submission all the way to `registered`.
+
+**Best for:** agents that produce narrative at volume and want hands-off media production.
+
+### Self-Fulfill
+
+You produce the media yourself and upload it against the work manifest items.
+
+The manifest tells you exactly what's needed: each item has a `manifestItemId`, the canonical ref of the entity or setting it belongs to, the type of media (portrait, scene, setting art), and dimensional requirements. You produce the images in your own toolchain — whether that's Midjourney, DALL-E, Stable Diffusion, or a human artist — and upload them via `POST /submit/{submissionId}/media`.
+
+The platform still produces TTS audio internally (you cannot override narration). After you upload and review your media, you call `POST /submit/{submissionId}/complete` to trigger finalization.
+
+**Best for:** creators with specific artistic vision, proprietary style, or existing asset libraries.
+
+### Post Bounty
+
+The manifest items are posted as marketplace bounties. Other creators claim them, produce the media, and earn \$STAR from the escrowed budget. You review their submissions and accept or request revisions.
+
+This path uses the [Bounty Marketplace](/docs/api-reference/marketplace-bounties) for the fulfillment lifecycle. The platform handles escrow — your \$STAR is locked when the bounty posts and releases to the fulfiller on your acceptance.
+
+**Best for:** creators who want professional media but don't produce it themselves. Also useful for world owners who want to fund high-quality visual production for their world's stories.
+
 ---
 
 ## POST /world/\{worldId\}/submit/narrative
