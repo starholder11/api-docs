@@ -8,6 +8,8 @@
     "---MCP Reference---",
     "mcp-reference",
     "---Guides---",
-    "guides"
+    "guides/emission-surface",
+    "guides/sse-streaming",
+    "guides/submission-lifecycle"
   ]
 }
