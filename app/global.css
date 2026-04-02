@@ -65,22 +65,12 @@
 }
 
 @media (min-width: 80rem) {
-  :root {
-    --starholder-docs-column-offset: 3.5rem;
-  }
-
   #nd-page {
-    padding-top: var(--starholder-docs-column-offset) !important;
-  }
-
-  [data-sidebar-placeholder],
-  #nd-toc {
-    top: calc(var(--fd-docs-row-1) + var(--starholder-docs-column-offset)) !important;
-    height: calc(var(--fd-docs-height) - var(--fd-docs-row-1) - var(--starholder-docs-column-offset)) !important;
+    padding-top: 0 !important;
   }
 
   #nd-toc {
-    padding-top: 0.5rem !important;
+    padding-top: 0 !important;
   }
 }
 
