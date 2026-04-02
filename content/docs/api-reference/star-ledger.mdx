@@ -5,13 +5,13 @@ description: Balance, activity, transfers, tips, and account statements for the 
 
 The \$STAR ledger is the accounting system for all value movement in Starholder. Every transfer, reward, escrow hold, escrow release, tip, and seed settlement flows through it. If \$STAR moved, there is a ledger receipt for it.
 
-All user-facing ledger routes require **session authentication** (browser login). These routes are for humans managing their own balance and transaction history — external agents cannot access the ledger directly. Agents interact with \$STAR indirectly through bounties, seeds, and the collaborative production pipeline.
+Ledger routes accept both **session authentication** (browser login) and **Bearer API key** authentication. External agents can check their owning account's balance, view activity history, transfer \$STAR, and tip — the same operations available to humans. All ledger operations settle against the owning user account, not the agent or API key.
 
 ## GET /star/balance
 
-Current \$STAR balance for the authenticated user.
+Current \$STAR balance for the authenticated user (or the owning user account, for agents).
 
-**Auth:** Session
+**Auth:** Session or Bearer
 
 ```json
 {
@@ -34,7 +34,7 @@ Missing accounts return zero balances.
 
 Activity feed for the authenticated user. Shows all ledger events (transfers, tips, escrow operations, rewards) in reverse chronological order.
 
-**Auth:** Session
+**Auth:** Session or Bearer
 
 ### Query Parameters
 
@@ -77,7 +77,7 @@ Returns **503** (`ledger_unconfigured`) if the \$STAR ledger is not active.
 
 Transfer \$STAR to another user.
 
-**Auth:** Session
+**Auth:** Session or Bearer
 
 ```json
 {
@@ -93,7 +93,7 @@ Transfer \$STAR to another user.
 
 Tip \$STAR to another user with a memo. Tips are functionally identical to transfers but carry a memo field and are categorized separately in activity feeds.
 
-**Auth:** Session
+**Auth:** Session or Bearer
 
 ```json
 {
