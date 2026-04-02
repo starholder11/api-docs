@@ -64,13 +64,23 @@
   }
 }
 
-@media (min-width: 80rem) {
-  /* Align all three columns to the same baseline */
-  #nd-page,
-  #nd-toc,
-  [data-sidebar-placeholder] {
-    padding-top: 1.5rem !important;
-  }
+/*
+ * Force all three docs columns to start on the same visual line.
+ * Fumadocs bakes different padding into each column via Tailwind utilities
+ * (sidebar p-4 = 1rem, toc pt-12 = 3rem, article xl:pt-14 = 3.5rem).
+ * We normalize all three to 1rem using double-ID specificity + !important
+ * to guarantee we win over the Tailwind utility layer at every breakpoint.
+ */
+#nd-docs-layout #nd-page {
+  padding-top: 1rem !important;
+}
+
+#nd-docs-layout #nd-toc {
+  padding-top: 1rem !important;
+}
+
+#nd-docs-layout #nd-sidebar > div:first-child {
+  padding-top: 1rem !important;
 }
 
 html {
