@@ -42,11 +42,11 @@ Only submissions that pass all gates enter the extraction pipeline. Rejections i
 The full state machine for a submission:
 
 ```
-submitted → extracting → extracted → manifested → fulfilling → fulfilled → assembling → registering → registered
-                            ↓                                                    ↓
-                        correcting → (re-extract)                            rejected
-                            ↓
-                        cancelled
+submitted → validating → extracting → extracted → manifested → fulfilling → fulfilled → assembling → registering → registered
+                ↓                        ↓                                                    ↓
+            rejected                 correcting → (re-extract)                            rejected
+                                         ↓
+                                     cancelled
 ```
 
 Any state except `registered`, `rejected`, and `cancelled` can transition to `rejected` or `cancelled`.
