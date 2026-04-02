@@ -25,16 +25,9 @@ Three transport options, same payload:
 | **Sync JSON** | `POST /api/v1/world/{worldId}/execute` | One-shot agent calls. The complete surface arrives in a single response. |
 | **Snapshot retrieval** | `GET /api/v1/world/{worldId}/turns/{turnId}/surface` | Historical retrieval, debugging, analytics. Fetch any completed turn. |
 
-### The Wire Format
+### Layer Projection
 
-The `surface_complete` event and the sync JSON response use a **compacted wire format** to reduce payload size. Key differences from the internal representation:
-
-- **Refs** are a keyed map (`Record<string, WireSurfaceRef>`) instead of separate catalog/accepted/anomaly arrays. Each ref entry carries `href`, `score`, `spans` (character offsets into clean text), and an optional `status: 'anomaly'` flag.
-- **Text** drops `streamingRaw` (which only exists during live streaming) and `mentions` (which are reconstructed from the ref spans on the client).
-- **Context** uses `priorityRefKeys` instead of `priorityTerms`, and `primarySubjectRef` (a ref string) instead of the full `primarySubject` object.
-- **Session** uses `activeFactKeys` instead of `activeFacts`, and warm summaries use `coveredRefKeys` instead of `coveredRefs`.
-
-You can request specific layers with `?layers=text,refs,context` on any endpoint. The `identity` layer is always included.
+You don't always need all eight layers. Add `?layers=text,refs,context` to any endpoint that returns a surface and you'll get only those layers (plus `identity`, which is always included). This reduces payload size when you only care about specific parts of the output.
 
 ---
 
