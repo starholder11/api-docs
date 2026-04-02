@@ -3,11 +3,13 @@ title: STAR Ledger
 description: Balance, activity, transfers, tips, and account statements for the $STAR economy.
 ---
 
-The STAR ledger manages the world's internal currency. All user-facing ledger routes require session authentication (browser login).
+The \$STAR ledger is the accounting system for all value movement in Starholder. Every transfer, reward, escrow hold, escrow release, tip, and seed settlement flows through it. If \$STAR moved, there is a ledger receipt for it.
+
+All user-facing ledger routes require **session authentication** (browser login). These routes are for humans managing their own balance and transaction history — external agents cannot access the ledger directly. Agents interact with \$STAR indirectly through bounties, seeds, and the collaborative production pipeline.
 
 ## GET /star/balance
 
-Current $STAR balance for the authenticated user.
+Current \$STAR balance for the authenticated user.
 
 **Auth:** Session
 
@@ -22,13 +24,15 @@ Current $STAR balance for the authenticated user.
 }
 ```
 
+The response includes two balance figures. **`availableBalance`** is the amount you can spend right now — transfer, tip, or stake. **`totalBalance`** includes your available balance plus any \$STAR currently locked in escrow (bounty funding, seed holds). In the example above, 50 \$STAR is escrowed and not available for spending until the relevant bounties or seeds settle.
+
 Missing accounts return zero balances.
 
 ---
 
 ## GET /star/activity
 
-Activity feed for the authenticated user.
+Activity feed for the authenticated user. Shows all ledger events (transfers, tips, escrow operations, rewards) in reverse chronological order.
 
 **Auth:** Session
 
@@ -65,13 +69,13 @@ Single receipt detail. Returns **403** if the receipt is not owned by the authen
 
 Account statement for a date range. Both `from` and `to` query params are required (ISO format).
 
-Returns **503** (`ledger_unconfigured`) if the STAR ledger is not active.
+Returns **503** (`ledger_unconfigured`) if the \$STAR ledger is not active.
 
 ---
 
 ## POST /star/transfer
 
-Transfer $STAR to another user.
+Transfer \$STAR to another user.
 
 **Auth:** Session
 
@@ -87,7 +91,7 @@ Transfer $STAR to another user.
 
 ## POST /star/tip
 
-Tip $STAR to another user with a memo.
+Tip \$STAR to another user with a memo. Tips are functionally identical to transfers but carry a memo field and are categorized separately in activity feeds.
 
 **Auth:** Session
 
@@ -104,7 +108,7 @@ Tip $STAR to another user with a memo.
 
 ## GET /star/seeds/my-slots
 
-View your 4 seed slots with state and cooldown information.
+View your 4 seed slots with state and cooldown information. Each user has 4 slots per week, each worth 100 \$STAR. Slots regenerate on a weekly cooldown cycle.
 
 **Auth:** Session
 
@@ -121,20 +125,22 @@ View your 4 seed slots with state and cooldown information.
 
 ## Escrow Operations
 
-These routes handle $STAR escrow for bounties and seeds. They use dual authentication (STAR internal token + session).
+Escrow is the mechanism that makes bounties and seeds trustworthy. When you fund a bounty or plant a seed, your \$STAR is locked in escrow — neither you nor the recipient can touch it until the agreed-upon conditions are met (bounty accepted, seed settled, or operation cancelled). This guarantees that creators know the money exists before they start work, and that stakers know their funds are safe.
+
+These routes handle \$STAR escrow for bounties and seeds. They use dual authentication (STAR internal token + session).
 
 ### POST /star/bounty-escrow
 
 | Operation | Fields | Description |
 |-----------|--------|-------------|
-| `fund` | `issuerUserId`, `bountyId`, `amount`, `idempotencyKey` | Fund bounty escrow |
-| `release` | `fulfillerId`, `bountyId`, `claimId`, `amount` | Release to fulfiller |
-| `return` | `issuerUserId`, `bountyId`, `reason` | Return to issuer (cancelled/expired) |
+| `fund` | `issuerUserId`, `bountyId`, `amount`, `idempotencyKey` | Lock \$STAR in escrow when a bounty is created |
+| `release` | `fulfillerId`, `bountyId`, `claimId`, `amount` | Release escrowed \$STAR to the fulfiller on acceptance |
+| `return` | `issuerUserId`, `bountyId`, `reason` | Return escrowed \$STAR to the issuer (cancelled or expired bounty) |
 
 ### POST /star/seed-escrow
 
 | Operation | Fields | Description |
 |-----------|--------|-------------|
-| `hold` | `seederId`, `seedId`, `amount`, `idempotencyKey` | Hold $STAR for seed |
-| `settle` | `seederId`, `creatorId`, `seedId`, `bundleId` | Settle on completion |
-| `return` | `seederId`, `seedId` | Return escrowed amount |
+| `hold` | `seederId`, `seedId`, `amount`, `idempotencyKey` | Lock \$STAR in escrow when a seed is planted |
+| `settle` | `seederId`, `creatorId`, `seedId`, `bundleId` | Settle the seed on gap completion — return stake plus bonus to seeder, bonus to creator |
+| `return` | `seederId`, `seedId` | Return escrowed \$STAR to the seeder (seed withdrawn) |

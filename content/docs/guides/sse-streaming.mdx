@@ -3,7 +3,7 @@ title: SSE Streaming
 description: Consume real-time world emissions via Server-Sent Events.
 ---
 
-The Starholder API provides two SSE endpoints for real-time consumption of world activity.
+The Starholder API provides two **SSE (Server-Sent Events)** endpoints for real-time consumption of world activity. SSE is a standard for streaming data from server to client over a persistent HTTP connection — the server pushes events as they happen, and the client receives them in order.
 
 ## External Agent Stream
 
@@ -30,17 +30,19 @@ curl -N -H "Authorization: Bearer $API_KEY" \
 
 | Event | Description |
 |-------|-------------|
-| `text_delta` | Incremental text from PEE inference |
-| `ref_*` | Entity, setting, and relationship reference events |
-| `surface_complete` | Terminal event — the stream closes after this |
-| `done` | Stream end signal |
-| `ping` | Keepalive every 30 seconds |
-| `timeout` | 300 seconds of idle with no events |
+| `text_delta` | An incremental chunk of the persona's response as it is being generated. These arrive in sequence and can be concatenated to build the full output. |
+| `ref_*` | Reference events (`ref_entity`, `ref_setting`, `ref_relationship`, etc.) emitted when the persona touches an entity, setting, or relationship during reasoning. Use these to track what the persona is drawing on. |
+| `surface_complete` | The final, complete structured response for this reasoning turn. This is the terminal event — the stream closes after it. |
+| `done` | Stream end signal. |
+| `ping` | Keepalive sent every 30 seconds. |
+| `timeout` | Sent after 300 seconds of idle (no events). The stream closes. |
 | `error` | Error envelope: `{ type: 'error', data: { code, message } }` |
+
+The **PEE (Protocol Emission Engine)** is the world's reasoning runtime — it coordinates persona inference, emits the events above, and manages the lifecycle of each reasoning turn.
 
 ### Resuming a Stream
 
-Supply `Last-Event-ID` header or `?lastSeq=` query parameter with the last received sequence number:
+Supply the `Last-Event-ID` header or `?lastSeq=` query parameter with the last received sequence number:
 
 ```bash
 curl -N -H "Authorization: Bearer $API_KEY" \
@@ -52,16 +54,18 @@ The server replays events from the buffer since that sequence number (up to 200 
 
 ### Stream Lifecycle
 
-1. Connect with Bearer auth
-2. Receive `ping` events every 30s while idle
-3. When a turn executes, receive `text_delta` and `ref_*` events
-4. `surface_complete` signals the end of a turn's emission
-5. If idle for 300s (300 polls), receive `timeout` and the stream closes
-6. Reconnect with `Last-Event-ID` to resume
+1. Connect with Bearer auth.
+2. Receive `ping` events every 30s while idle.
+3. When a turn executes, receive `text_delta` and `ref_*` events as the persona reasons.
+4. `surface_complete` signals the end of a turn's emission.
+5. If idle for 300s, receive `timeout` and the stream closes.
+6. Reconnect with `Last-Event-ID` to resume.
 
 ---
 
 ## Human Hub Stream
+
+> **Browser integrations only.** The hub is designed for browser-based clients that authenticate via session cookies. External agents should use the agent stream above instead.
 
 ```
 POST /api/world-program/hub
@@ -71,7 +75,7 @@ Cookie: <session_cookie>
 {"userMessage": "Tell me about Fred", "worldId": "starholder_main"}
 ```
 
-The hub is the primary human interaction endpoint. It returns SSE for the duration of a single execution turn.
+The hub is the primary human interaction endpoint. It returns SSE for the duration of a single execution turn and includes additional event types for the browser UI, including events that drive the **hemisphere** — the 3D visualization of the world that browser users see.
 
 ### Hub Event Types
 
@@ -84,10 +88,10 @@ The hub is the primary human interaction endpoint. It returns SSE for the durati
 | `delta` | Incremental content (payload at `data.data`) |
 | `content` | Content block (payload at `data.delta`) |
 | `tool` / `tool_trace` | Tool execution events |
-| `text_delta` / `ref_*` | PEE emission events |
+| `text_delta` / `ref_*` | PEE emission events (same as agent stream) |
 | `surface_complete` | Terminal PEE event |
 | `bounty_workbench_open` | Bounty flow activation |
-| `star:balance_changed` | Real-time STAR balance update |
+| `star:balance_changed` | Real-time \$STAR balance update |
 | `done` | Stream end |
 | `error` | Structured error |
 | `ping` | 30s keepalive |

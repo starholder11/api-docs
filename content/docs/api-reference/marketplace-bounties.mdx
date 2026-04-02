@@ -3,7 +3,12 @@ title: Marketplace — Bounties
 description: Create, claim, submit, review, and finalize bounties in the Starholder marketplace.
 ---
 
-The bounty marketplace connects content demand (world gaps, curator objectives) with external creator supply. Bounties have types (`text_story`, `media_production`), carry $STAR escrow, and follow a structured lifecycle.
+The bounty marketplace connects content demand with creator supply. There are two bounty types:
+
+- **`text_story`** — You need someone to write a narrative. You post the brief, set a budget, and a creator writes a story that you will own once accepted.
+- **`media_production`** — You already have a story but need images produced for it. You post the work manifest items (entity portraits, scene illustrations, setting art) and a creator produces the media.
+
+Every bounty carries a \$STAR budget. When you create a bounty, your \$STAR is placed in **escrow** — locked so the fulfiller knows the funds exist and will be released to them upon acceptance. If the bounty is cancelled or expires, the escrowed \$STAR is returned to you.
 
 ## Bounty Lifecycle
 
@@ -11,6 +16,8 @@ The bounty marketplace connects content demand (world gaps, curator objectives) 
 create → claim → submit → review → finalize
                                   ↘ revision_requested → resubmit
 ```
+
+When a creator claims a bounty, they commit to delivering by a deadline. If they claim but don't deliver before the expiration time, the claim expires automatically and the bounty reopens for someone else to take.
 
 **Self-fulfillment** (issuer settles their own bounty) uses the atomic `/settle` endpoint.
 
@@ -33,7 +40,7 @@ Returns paginated bounty list with `bounties`, `total`, `cursor`.
 
 ## POST /world/\{worldId\}/bounties
 
-Create a new bounty.
+Create a new bounty. The specified budget is immediately escrowed from your \$STAR balance.
 
 **Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `bounty:post`
 
@@ -48,19 +55,17 @@ Create a new bounty.
 }
 ```
 
-Funds escrow from the issuer's $STAR balance when the ledger is configured.
-
 ---
 
 ## GET /world/\{worldId\}/bounties/\{bountyId\}
 
-Retrieve a single bounty with full detail.
+Retrieve a single bounty with full detail, including current lifecycle status, claim information, and linked gap/seed data.
 
 ---
 
 ## POST /world/\{worldId\}/bounties/\{bountyId\}/claim
 
-Claim an open bounty.
+Claim an open bounty. This reserves the bounty for you until the expiration time.
 
 **Auth:** Bearer or session | **Scope:** `bounty:claim`
 
@@ -95,13 +100,13 @@ Review a bounty submission (issuer only).
 }
 ```
 
-Decisions: `accept`, `reject`, `revision_requested`. Accepting may auto-finalize.
+Decisions: `accept`, `reject`, `revision_requested`. Accepting may auto-finalize and release escrow to the fulfiller.
 
 ---
 
 ## POST /world/\{worldId\}/bounties/\{bountyId\}/finalize
 
-Finalize an accepted bounty. Releases escrow and triggers any media top-up hooks.
+Finalize an accepted bounty. Releases escrowed \$STAR to the fulfiller and triggers any media top-up hooks.
 
 **Auth:** Bearer or session | **Scope:** `bounty:review`
 
@@ -109,7 +114,7 @@ Finalize an accepted bounty. Releases escrow and triggers any media top-up hooks
 
 ## POST /world/\{worldId\}/bounties/\{bountyId\}/settle
 
-Atomic self-fulfillment path (issuer only, `text_story` bounties). Combines submit + auto-accept + finalize + escrow release in one call.
+Atomic self-fulfillment path (issuer only, `text_story` bounties). Combines submit + auto-accept + finalize + escrow release in one call. Use this when you posted a bounty and ended up writing the story yourself.
 
 **Auth:** Session | **Scope:** `bounty:submit`
 
@@ -117,7 +122,7 @@ Atomic self-fulfillment path (issuer only, `text_story` bounties). Combines subm
 
 ## GET /world/\{worldId\}/bounties/\{bountyId\}/notes
 
-List notes on a bounty thread.
+List notes on a bounty thread. Notes are the discussion channel between issuer and fulfiller.
 
 ## POST /world/\{worldId\}/bounties/\{bountyId\}/notes
 
@@ -129,19 +134,19 @@ Post a note to the bounty discussion thread.
 
 ## GET /world/\{worldId\}/bounties/\{bountyId\}/work-manifest
 
-Retrieve the work manifest associated with a bounty.
+Retrieve the work manifest associated with a bounty (for `media_production` bounties, this lists the specific assets to produce).
 
 ---
 
 ## GET /world/\{worldId\}/bounties/\{bountyId\}/submission/\{submissionId\}
 
-Retrieve a specific bounty submission with optional presigned asset URLs.
+Retrieve a specific bounty submission with optional presigned asset URLs for any uploaded media.
 
 ---
 
 ## POST /world/\{worldId\}/bounties/\{bountyId\}/staging/upload-url
 
-Get a presigned S3 upload URL for media assets.
+Get a presigned S3 upload URL for staging media assets before submitting them against a bounty.
 
 ```json
 {

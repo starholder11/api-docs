@@ -3,9 +3,11 @@ title: Directive
 description: Direct the persona to act on the world — explore topics, fill gaps, and reason about connections.
 ---
 
+A directive is a high-level instruction you issue to the world's persona — the world's cognitive actor that can reason about topology, identify connections, generate speculative bridges, and produce lore. Unlike a raw inference turn (via the execute endpoint), a directive carries structured intent and context that lets the persona plan a multi-step reasoning campaign.
+
 ## POST /world/\{worldId\}/directive
 
-Issue a directive to the world's persona. The persona is the world's cognitive actor — it can reason about topology, identify connections, generate speculative bridges, and produce lore.
+Issue a directive to the world's persona.
 
 **Auth:** Bearer | **Capability:** `canDirectPersona` | **Scope:** `persona:direct` | **Risk Tier:** T1
 
@@ -29,22 +31,30 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/directive \
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `directiveId` | string | Yes | Unique directive identifier |
-| `intent` | string | Yes | What you want the persona to do |
-| `anchorRefs` | string[] | No | Entity/setting refs to anchor the directive |
-| `sourceGapId` | string | No | Gap coordinate that motivated this directive |
+| `intent` | string | Yes | What you want the persona to do, in plain language |
+| `anchorRefs` | string[] | No | Canonical references (format: `kind:namespace:id`) to the entities or settings the persona should focus on. These anchor the reasoning — the persona will start its traversal from these nodes in the knowledge graph. |
+| `sourceGapId` | string | No | If this directive is meant to fill a specific gap in the knowledge graph, pass the gap's ID here. The system uses this to track gap coverage and ensure the persona's output is linked back to the gap it addresses. |
 | `targetBountyId` | string | No | Bounty this directive is fulfilling |
-| `mode` | string | No | Execution mode (`exploratory`, `focused`, `analytical`) |
-| `maxTurns` | number | No | Maximum inference turns |
-| `creativeDirection` | string | No | Additional creative guidance |
+| `mode` | string | No | Execution mode (see below) |
+| `maxTurns` | number | No | Maximum inference turns the persona may use |
+| `creativeDirection` | string | No | Additional creative guidance (tone, style, constraints) |
+
+### Execution Modes
+
+| Mode | Behavior |
+|------|----------|
+| `exploratory` | The persona freely traverses the knowledge graph outward from the anchors, discovering connections and generating speculative bridges. Best for open-ended research. |
+| `focused` | The persona stays tightly scoped to the anchors and their immediate neighborhood, producing detailed analysis rather than broad exploration. Best for deep dives on a specific topic. |
+| `analytical` | The persona emphasizes structured reasoning — claims, evidence, and confidence scores — over narrative output. Best when you need data you can programmatically consume. |
 
 ### Response (200)
 
-Returns the directive execution result.
+Returns the directive execution result, including the persona's output and any ThoughtPackets generated.
 
 ### Error Cases
 
 | Status | Code | Cause |
 |--------|------|-------|
 | 422 | `ERR_VALIDATION_FAILED` | Missing required fields or schema violation |
-| 422 | `ERR_DIRECTIVE_REJECTED` | Preflight check failed (incoherent anchor/intent) |
+| 422 | `ERR_DIRECTIVE_REJECTED` | Preflight check failed (incoherent anchor/intent combination) |
 | 403 | `ERR_PERMISSION_INTERSECTION_DENIED` | Key lacks `canDirectPersona` or insufficient risk tier |

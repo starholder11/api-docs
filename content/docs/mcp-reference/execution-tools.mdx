@@ -3,11 +3,11 @@ title: Execution Tools
 description: MCP tools for executing inference turns, proposals, and persona directives.
 ---
 
-Execution tools trigger persona activity and world state changes. They require write scopes and appropriate capabilities.
+Execution tools trigger activity from the **persona** — the world's built-in AI reasoning engine that traverses the knowledge graph, draws connections, and produces structured responses. These tools require write scopes and appropriate capabilities.
 
 ## execute_turn
 
-Synchronous turn execution with streaming.
+Run a synchronous inference turn with streaming. During a turn, the persona reads your prompt, traverses the knowledge graph, reasons about connections between entities, settings, and narratives, and produces a structured response. The results are committed to the world — this is a write operation.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -26,7 +26,7 @@ Synchronous turn execution with streaming.
 
 ## execute_turn_async
 
-Async turn job submission. Returns immediately with a job ID.
+Submit a turn as an asynchronous job. Returns immediately with a job ID instead of holding a connection open. Use this for long-running operations, batch processing, or environments where you can't maintain a persistent connection. Provide a `webhookUrl` to be notified when the job completes.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -43,14 +43,14 @@ Async turn job submission. Returns immediately with a job ID.
 
 ## propose_inference
 
-Propose inference without committing side effects. Useful for preview/analysis.
+Propose an inference without committing any side effects to the world. This is a preview or dry-run: the persona reasons about your content and returns a response, but nothing is written to the knowledge graph. Use this when you want to see what the persona would say before deciding whether to commit the results.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `worldId` | string | Yes | Target world |
 | `requestId` | string | Yes | Request identifier |
 | `content` | string | Yes | Inference content |
-| `anchorRefs` | string[] | No | Anchor entity/setting refs |
+| `anchorRefs` | string[] | No | Anchor entity/setting refs to focus on |
 | `mode` | string | No | Proposal mode |
 
 **Requires:** `canProposeInference` capability
@@ -59,14 +59,14 @@ Propose inference without committing side effects. Useful for preview/analysis.
 
 ## direct_persona
 
-Direct the persona to act on the world.
+Give the persona a mission rather than asking it a question. Instead of a conversational prompt, you provide a **directive** — an instruction to explore a topic, bridge a gap, analyze connections, or perform creative work across the knowledge graph. The persona executes autonomously over multiple turns if needed.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `worldId` | string | Yes | Target world |
 | `directiveId` | string | Yes | Unique directive ID |
 | `intent` | string | Yes | What the persona should do |
-| `anchorRefs` | string[] | No | Anchor refs |
+| `anchorRefs` | string[] | No | Anchor refs to focus on |
 | `sourceGapId` | string | No | Motivating gap coordinate |
 | `targetBountyId` | string | No | Associated bounty |
 | `mode` | string | No | Execution mode |

@@ -3,11 +3,13 @@ title: Error Handling
 description: Error envelope format, error codes, retry strategy, and status code mapping.
 ---
 
+The Starholder API is designed so that errors are structured, predictable, and include enough information to fix the problem without guessing. Every error response tells you what went wrong, which request it applies to, and whether you should retry. This page covers the response format, every error code you might encounter, and how to handle retries.
+
 ## Response Envelope
 
-### Success
+Every API response follows the same structure, so you always know what to expect regardless of which endpoint you call. Parse the top-level `ok` field first — it tells you whether the request succeeded before you look at anything else.
 
-Routes that use the standard envelope return:
+### Success
 
 ```json
 {
@@ -20,7 +22,7 @@ Routes that use the standard envelope return:
 }
 ```
 
-`meta` is present when the handler includes request metadata. Some older routes (STAR wallet, key lifecycle) return raw JSON without the `ok` wrapper.
+`meta` is present when the handler includes request metadata. Some older routes (\$STAR wallet, key lifecycle) return raw JSON without the `ok` wrapper — these are being migrated over time.
 
 ### Error
 
@@ -44,7 +46,7 @@ When `retryable` is `true`, the error may include `retryAfterMs` and the respons
 |--------|---------|-----------|
 | **200** | Success | — |
 | **201** | Created (narrative submit) | — |
-| **202** | Accepted (async job enqueued) | — |
+| **202** | Accepted (async job enqueued — work is happening in the background) | — |
 | **400** | Bad request / validation failure | No |
 | **401** | Authentication failed (missing, invalid, or revoked key) | No |
 | **403** | Authorization denied (insufficient scope, capability, or risk tier) | No |
@@ -61,40 +63,42 @@ When `retryable` is `true`, the error may include `retryAfterMs` and the respons
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_AUTH_INVALID` | 401 | Bearer token missing, malformed, or not found |
-| `ERR_AUTH_FORBIDDEN` | 403 | Actor kind not allowed for this route |
+| `ERR_AUTH_INVALID` | 401 | Bearer token missing, malformed, or not found in the system. Double-check that your `Authorization` header is formatted as `Bearer <your_key>`. |
+| `ERR_AUTH_FORBIDDEN` | 403 | The type of caller (actor class) making this request isn't allowed on this route. For example, an API key hitting a session-only endpoint. |
 
 ### Authorization
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_PERMISSION_INTERSECTION_DENIED` | 403 | Key lacks required scope or capability |
-| `ERR_WORLD_POLICY_DENIED` | 404 | World-level policy flag not enabled |
-| `ERR_MUTATION_NOT_PERMITTED` | 403 | Mutation class not allowed for actor |
+| `ERR_PERMISSION_INTERSECTION_DENIED` | 403 | Your key lacks the required scope or capability for this operation. "Intersection" refers to the overlap between what your key is allowed to do and what the route requires — if there's no overlap, the request is denied. Check both your key's capability set and its world scopes. |
+| `ERR_WORLD_POLICY_DENIED` | 404 | A world-level policy flag required by this route isn't enabled. This returns 404 (not 403) because when a feature is disabled, the route effectively doesn't exist — revealing its existence would leak information about the world's configuration. Contact the world owner to enable the relevant policy flag. |
+| `ERR_MUTATION_NOT_PERMITTED` | 403 | The specific type of mutation you're attempting isn't allowed for your actor class. This is distinct from scope/capability checks — some mutations are restricted by design regardless of permissions. |
 
 ### Validation
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_VALIDATION_FAILED` | 422 | Request body fails schema validation |
-| `ERR_MISSING_ORIGIN_SYSTEM` | 422 | `x-origin-system` header required but missing |
-| `ERR_CONTENT_HASH_MISMATCH` | 422 | Supplied `contentHash` doesn't match narrative text |
+| `ERR_VALIDATION_FAILED` | 422 | Request body fails schema validation. The `message` field will contain details about which fields are invalid or missing. |
+| `ERR_MISSING_ORIGIN_SYSTEM` | 422 | The `x-origin-system` header is required on query and execute routes but wasn't provided. Set it to a string that identifies your agent (e.g., `"my-trading-bot"`). |
+| `ERR_CONTENT_HASH_MISMATCH` | 422 | The `contentHash` you supplied doesn't match the hash computed from the narrative text. This prevents accidental submission of mismatched content. Recompute the hash from the exact text you're submitting. |
 
 ### Resource State
 
+These errors relate to the state of resources as they move through processing pipelines. Several of them are **expected during normal operation** — they don't mean something is broken, just that the resource isn't ready yet.
+
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_EXTRACTION_NOT_READY` | 409 | Extraction pipeline still running |
-| `ERR_MANIFEST_NOT_READY` | 409 | Manifest not yet generated |
-| `ERR_STRATEGY_ALREADY_SET` | 409 | Manifest strategy cannot be changed once set |
-| `ERR_DUPLICATE_CONTENT_HASH` | 422 | Same narrative text submitted within dedupe window |
-| `ERR_IDEMPOTENCY_CONFLICT` | 409 | Async job with same idempotency key already exists |
+| `ERR_EXTRACTION_NOT_READY` | 409 | The extraction pipeline (which analyzes submitted narrative content) is still running. This is normal — after submitting a narrative, extraction takes time. Poll the resource periodically and retry when it completes. |
+| `ERR_MANIFEST_NOT_READY` | 409 | The manifest (a structured breakdown of media assets needed for a narrative) hasn't been generated yet. Like extraction, this is part of the normal submission lifecycle. Poll and retry. |
+| `ERR_STRATEGY_ALREADY_SET` | 409 | The manifest's fulfillment strategy has already been chosen and can't be changed. Strategies are immutable once set to prevent conflicting work. |
+| `ERR_DUPLICATE_CONTENT_HASH` | 422 | The same narrative text (identified by content hash) was already submitted within the deduplication window. This prevents accidental double-submissions. |
+| `ERR_IDEMPOTENCY_CONFLICT` | 409 | An async job with the same idempotency key already exists and is in a conflicting state. Use a new idempotency key if you intend this to be a separate operation. |
 
 ### Directive
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_DIRECTIVE_REJECTED` | 422 | Directive preflight rejected (incoherent request) |
+| `ERR_DIRECTIVE_REJECTED` | 422 | The directive was rejected during **preflight** — a validation step where the system checks whether your directive makes sense before actually executing it. For example, directing a persona to do something contradictory or referencing an entity that doesn't exist. The `message` field will explain why the directive was rejected. |
 
 ## Correlation IDs
 

@@ -3,9 +3,11 @@ title: World Runtime
 description: Query the world, execute inference turns, poll async jobs, and retrieve emission surfaces.
 ---
 
+The World Runtime routes let you interrogate and reason against a world's knowledge graph. You can search for known entities, run inference turns that produce new reasoning artifacts, and retrieve the structured output documents the world produces.
+
 ## POST /world/\{worldId\}/query
 
-Semantic or structured query against a world's knowledge graph.
+Run a query against a world's knowledge graph. The query can be **semantic** (a natural-language phrase like `"Fred the Slughauler"` that the system matches against meaning and context) or **structured** (a precise filter object that targets specific node types or relationships). Most callers use semantic queries; structured queries are useful when you already know the shape of the data you need.
 
 **Auth:** Bearer | **Capability:** `canQuery` | **Scope:** `world:read` | **Risk Tier:** T0
 
@@ -21,10 +23,12 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/query \
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `query` | string | Yes | Search query text |
+| `query` | string | Yes | Search query text (natural language or structured filter) |
 | `maxResults` | number | No | Maximum candidates to return |
 
 ### Response (200)
+
+The response contains an array of **candidates** — knowledge graph nodes that match your query. Each candidate includes a `ref` (the node's canonical reference) and a `score` between 0 and 1. The score represents **relevance confidence**: how strongly the system believes this candidate matches your query. A score of 0.95 means near-certain match; scores below 0.5 are speculative.
 
 ```json
 {
@@ -43,7 +47,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/query \
 
 ## POST /world/\{worldId\}/execute
 
-Synchronous inference turn. The persona executes and returns the result in a single response.
+Run a synchronous **inference turn** — the world's persona (its AI reasoning engine) processes your question, traverses the knowledge graph to gather context, and returns a structured response. That reasoning gets committed as a **ThoughtPacket**, a reusable reasoning artifact that enriches the knowledge graph for future queries. This is the core "thinking" operation of the world.
 
 **Auth:** Bearer | **Capability:** `canExecuteFlows` | **Scopes:** `world:write`, `inference:propose` | **Risk Tier:** T1
 
@@ -63,20 +67,22 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/execute \
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `requestId` | string | No | Client-supplied request ID |
-| `idempotencyKey` | string | Yes | Ensures replay safety |
-| `userMessage` | string | Yes | The inference prompt |
-| `payload` | object | No | Alternative: `{ kind: "inference_turn", ... }` |
+| `requestId` | string | No | Client-supplied request ID for your own tracking |
+| `idempotencyKey` | string | Yes | Ensures replay safety — resending the same key returns the cached result instead of running a new turn |
+| `userMessage` | string | Yes | The inference prompt: what you want the persona to reason about |
+| `payload` | object | No | Alternative structured payload: `{ kind: "inference_turn", ... }` |
 
 ### Response (200)
 
-Returns the execution result with `executionId`. Replaying the same `idempotencyKey` returns the cached result.
+Returns the execution result with an `executionId`. The `executionId` is a stable identifier you can use to retrieve the full output later (via the surface endpoint) or to reference this turn in subsequent API calls. Replaying the same `idempotencyKey` returns the cached result without running a new inference turn.
 
 ---
 
 ## POST /world/\{worldId\}/execute/async
 
-Enqueue an inference turn as a background job. Returns immediately with a job envelope.
+Enqueue an inference turn as a background job. Returns immediately with a job envelope instead of blocking until the persona finishes reasoning.
+
+Use async execution when the inference might take a long time (complex multi-hop queries, large context windows), when your client cannot hold a connection open, or when you want to fire off multiple inference turns in parallel and poll for results.
 
 **Auth:** Bearer | **Capability:** `canExecuteFlows` | **Scopes:** `world:write`, `inference:propose` | **Risk Tier:** T1
 
@@ -103,7 +109,7 @@ Duplicate `idempotencyKey` for an in-flight job returns **409**.
 
 ## GET /jobs/\{jobId\}
 
-Poll the status of an async job. Ownership-matched to the creating actor.
+Poll the status of an async job. The job must belong to the authenticated actor — you can only poll your own jobs.
 
 **Auth:** Bearer or session | **Scopes:** none (ownership-matched)
 
@@ -114,13 +120,13 @@ curl https://www.starholder.xyz/api/v1/jobs/job_abc123 \
 
 ### Response (200)
 
-Returns the job envelope with current status (`queued`, `running`, `completed`, `failed`) and the terminal result when complete.
+Returns the job envelope with current status (`queued`, `running`, `completed`, `failed`) and the terminal result when complete. Poll until `status` is `completed` or `failed`.
 
 ---
 
 ## GET /world/\{worldId\}/turns/\{turnId\}/surface
 
-Retrieve a persisted Emission Surface snapshot for a completed turn.
+Retrieve the **Emission Surface** for a completed inference turn. The Emission Surface is the structured 8-layer response document the world produces after reasoning — it contains everything from raw claims and evidence to narrative chatter, structured data extracts, and confidence annotations. Think of it as the full, layered output of one round of world-thinking.
 
 **Auth:** Bearer or session
 
@@ -128,17 +134,30 @@ Retrieve a persisted Emission Surface snapshot for a completed turn.
 
 | Param | Description |
 |-------|-------------|
-| `layers` | Comma-separated projection layers (e.g. `claims,chatter`). Without this, returns raw JSON. |
+| `layers` | Comma-separated list of layers to project. Without this parameter, the endpoint returns the raw JSON of the entire surface. |
+
+### Available Layers
+
+The surface is organized into layers that separate different aspects of the persona's output. You can request only the layers you need to reduce payload size and focus your processing:
+
+- `claims` — Factual assertions the persona derived from the knowledge graph
+- `chatter` — Natural-language narrative and explanatory text
+- `evidence` — Source references and supporting data the persona drew on
+- `topology` — Structural relationships and graph connections discovered
+- `speculation` — Hypothetical bridges and tentative reasoning
+- `confidence` — Per-claim confidence scores and uncertainty markers
+- `metadata` — Turn timing, token counts, and execution metadata
+- `directives` — Follow-up actions or suggested next queries
 
 ### Response Modes
 
-- **Without `layers`:** Raw JSON body of the surface
-- **With `layers`:** Wrapped projected JSON with only the requested layers
+- **Without `layers`:** Raw JSON body of the entire surface (all 8 layers)
+- **With `layers`:** Wrapped projected JSON containing only the requested layers
 
 ---
 
 ## GET /world/\{worldId\}/sessions/\{sessionId\}/turns
 
-List turns within a session.
+List turns within a session. Returns the turn history in chronological order.
 
 **Auth:** Bearer or session

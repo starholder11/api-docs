@@ -5,7 +5,7 @@ description: How API key auth, session auth, and internal auth work across the S
 
 ## Authentication Mechanisms
 
-The Starholder API supports three authentication mechanisms, each serving different actor classes.
+The Starholder API supports three authentication mechanisms, each designed for a different kind of caller — we call these **actor classes**. An actor class is simply the category of entity making the request: an external software agent using an API key, a human user logged in through a browser, or an internal platform service talking to another service.
 
 ### Bearer API Key (External Agents)
 
@@ -15,7 +15,7 @@ All external agent access uses API key authentication:
 Authorization: Bearer sk_live_abc123...
 ```
 
-API keys are created through the account management surface and scoped to specific capabilities and world access. Each key is a delegated execution principal rooted at the owning user account.
+API keys are created through the account management surface and scoped to specific capabilities and world access. Each key acts on behalf of your user account — any \$STAR earnings, mutations, or other actions performed through the key are attributed to you, not to the key itself. Think of it like a limited power of attorney: the key can do things in your name, but only the things you've allowed it to do.
 
 **Required headers for external agents:**
 
@@ -23,32 +23,36 @@ API keys are created through the account management surface and scoped to specif
 |--------|----------|-------------|
 | `Authorization` | Yes | `Bearer <api_key_secret>` |
 | `Content-Type` | Yes | `application/json` |
-| `x-origin-system` | On query/execute routes | Identifies your agent system |
-| `X-Correlation-Id` | Optional | Client-supplied correlation ID; echoed in response |
+| `x-origin-system` | On query/execute routes | Identifies your agent system (a string you choose, like `"my-trading-bot"`) |
+| `X-Correlation-Id` | Optional | Client-supplied correlation ID; echoed in response for request tracing |
 
 ### Session Cookie (Human Users)
 
-Browser-based access uses Cognito JWT session cookies set by the middleware layer. Session auth is required for:
+Browser-based access uses session cookies set when you log in through the Starholder web interface. These are standard HTTP-only cookies managed automatically by the browser — you don't need to handle them manually. Session auth is required for:
 
 - Account management (`/api/v1/account/*`)
 - Admin operations (`/api/v1/admin/*`)
-- STAR ledger user routes (`/api/v1/star/*`)
+- \$STAR ledger user routes (`/api/v1/star/*`)
 - Hub SSE stream (`/api/world-program/hub`)
+
+If you're building a browser extension or web app that piggybacks on a logged-in session, these cookies will be sent automatically with same-origin requests.
 
 ### Internal Secret (Platform Services)
 
-Server-to-server calls between platform services use:
+> **Note for external developers:** You will never use internal secret authentication. It's documented here for completeness so you understand the full auth picture when reading error messages or route documentation.
+
+Server-to-server calls between Starholder's own platform services use a shared secret header pair:
 
 ```
 x-internal-request: <INTERNAL_API_SECRET>
 x-internal-producer: <service_name>
 ```
 
-These routes reject Bearer auth entirely.
+These routes reject Bearer auth entirely — they are not accessible to external agents or browser sessions.
 
 ## API Key Capabilities
 
-Each API key carries a `capabilitySet` that determines which operations are available:
+Each API key carries a **capability set** — a collection of boolean flags that determine which specific operations the key is allowed to perform. When you create a key, you choose which capabilities to enable. A key can only do what its capabilities allow, regardless of what your account can do.
 
 ```json
 {
@@ -64,11 +68,28 @@ Each API key carries a `capabilitySet` that determines which operations are avai
 }
 ```
 
+| Capability | What it allows |
+|-----------|----------------|
+| `canRead` | Read world state — entities, settings, textroots |
+| `canQuery` | Execute read-only queries against the world |
+| `canExecuteFlows` | Run execution flows (mutations that change world state) |
+| `canProposeInference` | Trigger inference turns (AI reasoning steps within the world) |
+| `canDirectPersona` | Issue directives to personas (characters within a world) |
+| `canSubmitNarrative` | Submit narrative bundles (story content) |
+| `canFulfillMedia` | Upload media fulfillment assets (images, audio, etc.) |
+| `canAccessGapCoordinates` | Read the gap coordinate feed (open creative opportunities in a world) |
+| `canAccessBounties` | Interact with the bounty system (post, claim, submit, review) |
+
 Requesting an operation your key doesn't support returns **403** with `ERR_PERMISSION_INTERSECTION_DENIED`.
 
 ## World Scopes
 
-Keys are also scoped to specific world-level permissions:
+In addition to capabilities, keys are assigned **world scopes**. Here's how they differ:
+
+- **Capabilities** are specific actions your key can perform (e.g., "can this key submit narrative?")
+- **Scopes** are broad permission categories tied to world-level resources (e.g., "does this key have write access to this world?")
+
+A request must pass both checks. Your key needs the right capability *and* the right scope for the target world. For example, submitting a narrative requires both the `canSubmitNarrative` capability and the `bundle:submit` scope on the world you're submitting to.
 
 | Scope | Grants |
 |-------|--------|
@@ -86,7 +107,7 @@ Keys are also scoped to specific world-level permissions:
 
 ## World Policy Flags
 
-Some routes additionally require world-level policy flags to be enabled:
+Beyond your key's own permissions, some routes require the **world owner** to have enabled specific policy flags on their world. These are world-level settings that the world owner controls — think of them as feature switches. Even if your key has every capability and scope, you can't access a route if the world owner hasn't turned on the corresponding policy flag.
 
 | Flag | Routes Affected |
 |------|----------------|
@@ -94,17 +115,19 @@ Some routes additionally require world-level policy flags to be enabled:
 | `publicGapFeedEnabled` | Gap coordinate feed |
 | `publicBountyFeedEnabled` | Bounty listing feed |
 
-When a world policy flag is not enabled, the route returns **404** with `ERR_WORLD_POLICY_DENIED`.
+When a world policy flag is not enabled, the route returns **404** with `ERR_WORLD_POLICY_DENIED`. It returns 404 (not 403) deliberately — if the feature isn't enabled, the route effectively doesn't exist for your key, and revealing its existence would leak information about the world's configuration.
 
 ## Key Lifecycle
 
+Once you have an API key, you can manage it programmatically through the account API. All lifecycle operations require session authentication (you must be logged in as the account owner).
+
 | Operation | Endpoint | Description |
 |-----------|----------|-------------|
-| Create | `POST /api/v1/account/api-keys` | Returns secret once |
-| List | `GET /api/v1/account/api-keys` | Public view only (no secrets) |
-| View | `GET /api/v1/account/api-keys/{keyId}` | Single key record |
-| Rotate | `POST /api/v1/account/api-keys/{keyId}/rotate` | New secret, old one invalidated |
-| Revoke | `POST /api/v1/account/api-keys/{keyId}/revoke` | Permanent, idempotent |
-| Audit | `GET /api/v1/account/api-keys/{keyId}/audit` | Event history |
+| Create | `POST /api/v1/account/api-keys` | Returns the secret once — store it immediately, you can't retrieve it later |
+| List | `GET /api/v1/account/api-keys` | Returns metadata only (no secrets) |
+| View | `GET /api/v1/account/api-keys/{keyId}` | Single key record (no secret) |
+| Rotate | `POST /api/v1/account/api-keys/{keyId}/rotate` | Generates a new secret and invalidates the old one |
+| Revoke | `POST /api/v1/account/api-keys/{keyId}/revoke` | Permanently disables the key (idempotent — safe to call multiple times) |
+| Audit | `GET /api/v1/account/api-keys/{keyId}/audit` | Event history for the key |
 
-Revoked keys return **401** (they fail hash lookup entirely, same as an unknown key).
+Revoked keys return **401** — they fail the lookup entirely, indistinguishable from an unknown key.

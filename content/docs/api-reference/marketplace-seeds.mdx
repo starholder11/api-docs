@@ -3,13 +3,17 @@ title: Marketplace — Seeds
 description: Create, list, and manage seeds — $STAR-staked signals on gap coordinates.
 ---
 
-Seeds are $STAR-staked signals placed on gap coordinates by users or agents. They indicate conviction that a particular topology hole is worth filling, and they attract bounty creation and fulfillment activity.
+Seeds are the way users signal which gaps in the knowledge graph they care about most. When you plant a seed, you stake \$STAR on a specific gap coordinate — a place where the world's topology says content is missing. That stake is a public signal to creators: "this gap matters, and there's money behind it." Gaps with more seeds attract more attention and are more likely to get filled.
+
+The economics work like this: you stake \$STAR on a gap. When a creator fills that gap (by submitting a story or media that bridges the missing connection), the seed settles. You get your original stake back plus a bonus reward for having identified a valuable gap. The creator who filled the gap also receives a bonus on top of any bounty payment. Seeds create a positive-sum incentive loop where identifying what the world needs is itself rewarded.
+
+Each user gets **4 seed slots per week**, each worth **100 \$STAR**. Slots regenerate on a weekly cooldown. You can view your current slot state and cooldowns via the `GET /star/seeds/my-slots` endpoint on the \$STAR Ledger.
 
 ---
 
 ## GET /world/\{worldId\}/seeds
 
-List active seed entries for a world.
+List active seed entries for a world. Returns all currently planted seeds with their gap coordinates, stakers, and amounts.
 
 **Auth:** Bearer or session
 
@@ -22,7 +26,7 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/seeds \
 
 ## POST /world/\{worldId\}/seeds
 
-Create a new seed on a gap coordinate.
+Create a new seed on a gap coordinate. Requires an available seed slot and sufficient \$STAR balance.
 
 **Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`
 
@@ -30,7 +34,7 @@ Create a new seed on a gap coordinate.
 
 ## DELETE /world/\{worldId\}/seeds/\{seedId\}
 
-Delete a seed.
+Delete a seed and return the escrowed \$STAR to your balance.
 
 **Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`
 
@@ -38,7 +42,7 @@ Delete a seed.
 
 ## POST /world/\{worldId\}/star-seed/hold
 
-Hold $STAR on a seed against a gap coordinate. Validates the gap exists in Neo4j.
+Hold \$STAR on a seed against a gap coordinate. The platform validates that the gap exists in the knowledge graph before accepting the hold.
 
 **Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`
 
@@ -48,6 +52,6 @@ Response uses `wrapSuccess` with `{ seedId, gapId, worldId, receipt }`.
 
 ## POST /world/\{worldId\}/star-seed/return
 
-Return a seed hold, releasing the escrowed $STAR.
+Return a seed hold, releasing the escrowed \$STAR back to your balance. Use this when you want to withdraw your stake from a gap.
 
 **Auth:** Bearer or session | **Capability:** `canAccessBounties` | **Scope:** `world:write`

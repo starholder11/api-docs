@@ -3,9 +3,19 @@ title: World Read
 description: Retrieve entities, settings, textroots, gap coordinates, and bounty feeds.
 ---
 
+The World Read routes let you look up the objects that make up a world's knowledge graph. The three primary node types are:
+
+- **Entities** — people, organizations, technologies, and other actors (e.g. Fred the Slughauler, The Lattice Consortium)
+- **Settings** — places, eras, institutions, and environments where events happen (e.g. the Quant Vegas Triangle, the Post-Scarcity Commons)
+- **TextRoots** — published stories and narrative content anchored to the world
+
+You can also read the world's **gap coordinates** (opportunities for new content) and its **bounty feed** (funded commissions).
+
 ## GET /world/\{worldId\}/entities/\{ref\}
 
-Retrieve an entity profile by canonical reference.
+Retrieve an entity profile by its canonical reference.
+
+A **canonical reference** is the standard way to identify any node in the knowledge graph. The format is `kind:namespace:id` — for example, `entity:starholder_main:fred_the_slughauler`. Some endpoints also accept the short form (just the `id` segment) when the kind and namespace are obvious from context.
 
 **Auth:** Bearer or session | **Capability:** `canRead` | **Scope:** `world:read`
 
@@ -19,17 +29,17 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/entities/fred_the_s
 | Param | Description |
 |-------|-------------|
 | `worldId` | World identifier (e.g. `starholder_main`) |
-| `ref` | Canonical entity ref. Format: `kind:namespace:id` or short form |
+| `ref` | Canonical entity ref (`kind:namespace:id`) or short-form ID |
 
 ### Response (200)
 
-Entity profile object. Returns **404** if the entity does not exist in the world's graph.
+Entity profile object including name, description, relationships, and metadata. Returns **404** if the entity does not exist in the world's graph.
 
 ---
 
 ## GET /world/\{worldId\}/settings/\{ref\}
 
-Retrieve a setting profile by canonical reference.
+Retrieve a setting profile by canonical reference. Settings describe the locations, time periods, and institutional structures that form the backdrop of a world's narratives.
 
 **Auth:** Bearer or session | **Capability:** `canRead` | **Scope:** `world:read`
 
@@ -44,7 +54,7 @@ Returns **404** if the setting is not found.
 
 ## GET /world/\{worldId\}/textroots/\{ref\}
 
-Retrieve a TextRoot (story) by reference.
+Retrieve a TextRoot (story) by reference. A TextRoot is a published piece of narrative content — a story, essay, or lore entry — that has been integrated into the world's knowledge graph.
 
 **Auth:** Bearer or session | **Capability:** `canRead` | **Scope:** `world:read`
 
@@ -55,7 +65,7 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/charley_v
 
 ### Ref Formats
 
-- **xref-backed:** `charley_valois` (entity cross-reference)
+- **xref-backed:** `charley_valois` (entity cross-reference — looks up the story associated with an entity)
 - **Direct alias:** `txt:textroot_<id>:story`
 
 Returns **404** if the textroot is not found.
@@ -64,7 +74,9 @@ Returns **404** if the textroot is not found.
 
 ## GET /world/\{worldId\}/gaps
 
-Retrieve gap coordinates — topology holes that represent opportunities for contribution.
+Retrieve **gap coordinates** for a world. A gap is a place in the knowledge graph where the topology says things are connected but no narrative content bridges them yet. For example, two entities might be linked by a relationship edge, but no story has been written about that relationship. Gaps are opportunities: they tell you exactly where the world needs new creative work.
+
+Each gap includes the nodes it connects, a difficulty estimate, and any seeds (stakes) that users have placed on it. Gaps with more seeds are higher priority for the community.
 
 **Auth:** Bearer or session | **Capability:** `canAccessGapCoordinates` | **World flag:** `publicGapFeedEnabled`
 
@@ -92,7 +104,7 @@ Returns **404** (`ERR_WORLD_POLICY_DENIED`) if the gap feed is not enabled for t
 
 ## POST /world/\{worldId\}/gaps
 
-Update gap visibility state.
+Update gap visibility state (e.g. hide or surface a gap).
 
 **Auth:** Bearer or session | **Capability:** `canAccessGapCoordinates` | **Scope:** `world:write` | **Mutation class:** `bounty_write`
 
@@ -100,7 +112,7 @@ Update gap visibility state.
 
 ## GET /world/\{worldId\}/bounties
 
-List bounties in the marketplace.
+List bounties in the marketplace. A **bounty** is a funded commission — someone has locked \$STAR to pay for specific creative work the world needs. Bounties may be linked to gap coordinates, giving you a clear brief of what to create and a guaranteed reward for doing it.
 
 **Auth:** Bearer or session | **Capability:** `canAccessBounties` | **World flag:** `publicBountyFeedEnabled`
 
@@ -109,4 +121,4 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/bounties \
   -H "Authorization: Bearer $API_KEY"
 ```
 
-Returns a paginated feed of bounties with optional seed and gap data.
+Returns a paginated feed of bounties with optional seed and gap data. Each bounty includes its type, budget, objective, and current lifecycle status.

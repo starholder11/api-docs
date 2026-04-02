@@ -3,11 +3,13 @@ title: Collaborative Tools
 description: MCP tools for narrative submission, manifest strategy, media fulfillment, and completion.
 ---
 
-Collaborative tools drive the narrative submission lifecycle through MCP.
+Collaborative tools drive the **submission pipeline** — the process by which external creators get stories into the world. The pipeline works in stages: you submit narrative text, the platform extracts structure from it (entities, settings, scenes), generates a media plan, and then you or another creator produces the required images. Once everything is fulfilled, the story enters the world's knowledge graph.
+
+See the [Submission Lifecycle](/docs/guides/submission-lifecycle) guide for a step-by-step walkthrough.
 
 ## submit_narrative
 
-Submit narrative text for extraction and review.
+Submit narrative text to begin the pipeline. After submission, the platform's extraction pipeline analyzes your text — identifying entities, settings, and scenes — and generates a work manifest listing the media assets needed (character portraits, scene illustrations, etc.). From there, you or another creator produces the images, and the story is integrated into the world.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -28,13 +30,21 @@ Submit narrative text for extraction and review.
 
 ## set_manifest_strategy
 
-Set the fulfillment strategy on a work manifest.
+Choose how the media in your work manifest will be produced. This decision is permanent for a given submission.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `worldId` | string | Yes | Target world |
 | `submissionId` | string | Yes | Submission ID |
-| `strategy` | string | Yes | `unattended`, `self`, or `post_bounty` |
+| `strategy` | string | Yes | One of the strategies below |
+
+**Strategy options:**
+
+| Strategy | Behavior |
+|----------|----------|
+| `unattended` | The platform generates all required media automatically using its own image pipeline. No human action needed. |
+| `self` | You produce and upload the media yourself using `submit_media_set`. |
+| `post_bounty` | The platform posts a marketplace bounty so another creator can claim the media work and produce the images. |
 
 **HTTP equivalent:** `POST /api/v1/world/{worldId}/submit/{submissionId}/manifest/strategy`
 
@@ -42,7 +52,7 @@ Set the fulfillment strategy on a work manifest.
 
 ## submit_media_set
 
-Submit media fulfillment for a manifest item.
+Upload media for a specific **manifest item** — one of the images the platform identified as needed during extraction. Manifest items are specific assets like a portrait of a character, an illustration of a scene, or a depiction of a setting. Each item has an ID from the work manifest.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -53,6 +63,8 @@ Submit media fulfillment for a manifest item.
 | `styleNotes` | string | No | Style notes |
 | `contentHash` | string | Yes | SHA-256 of the media set |
 
+Idempotent on `contentHash` — safe to retry.
+
 **Requires:** `canFulfillMedia` capability, `bundle:submit` + `media:upload` scopes
 
 **HTTP equivalent:** `POST /api/v1/world/{worldId}/submit/{submissionId}/media`
@@ -61,7 +73,7 @@ Submit media fulfillment for a manifest item.
 
 ## complete_submission
 
-Mark a submission as complete, triggering the finalization pipeline.
+Mark a submission as complete, triggering the finalization pipeline. Finalization binds your story, its extracted entities and settings, and its media into a canonical bundle in the world's knowledge graph. Once finalized, the content is live in the world and \$STAR attribution is triggered based on your contributions.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

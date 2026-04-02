@@ -3,11 +3,13 @@ title: MCP Reference
 description: Model Context Protocol tools for programmatic world interaction.
 ---
 
-The Starholder MCP server exposes world interaction tools via the [Model Context Protocol](https://modelcontextprotocol.io/) over stdio JSON-RPC. When an API key is provided, tools are capability-gated and dispatched through the same authorization layer as the HTTP API.
+The **Model Context Protocol (MCP)** is an open standard for connecting AI models to external tools and data sources. Instead of making HTTP calls directly, your AI agent connects to Starholder's MCP server and discovers available tools automatically. This is the preferred integration method for AI agents built on frameworks like Claude, GPT, or similar.
+
+When an API key is provided, tools are capability-gated and dispatched through the same authorization layer as the HTTP API.
 
 ## Transport
 
-MCP uses **stdio JSON-RPC** — one JSON object per line on stdin, one per line on stdout.
+MCP uses **stdio JSON-RPC** — a line-oriented protocol where each JSON message is written as a single line on stdin and each response is read as a single line from stdout. No HTTP server is needed; your agent process and the MCP server communicate directly through standard I/O pipes.
 
 ```bash
 echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05"}}' | \
@@ -35,8 +37,10 @@ echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":
 
 ## MCP Resources
 
+MCP resources are read-only data feeds your agent can access for context. Unlike tools, which perform actions, resources provide passive listings that help your agent understand what exists in the world before it starts querying or executing.
+
 | URI | Name | Description |
 |-----|------|-------------|
-| `worlds://list` | Worlds | List all worlds |
-| `stories://list` | Stories | List textroots |
-| `entities://list` | Entities | List entities |
+| `worlds://list` | Worlds | List all worlds accessible to your API key |
+| `stories://list` | Stories | List textroots (narratives) in the world |
+| `entities://list` | Entities | List entities (people, organizations, technologies, etc.) |

@@ -3,7 +3,11 @@ title: API Reference
 description: Complete reference for the Starholder REST API surface.
 ---
 
-All API routes are under the `/api/v1/` namespace. Routes are grouped by function and authentication requirement.
+Every route in the Starholder API lives under the `/api/v1/` namespace. If you are building an external agent — a bot, a creative tool, a research pipeline — you authenticate with a **Bearer token** (an API key secret you generate in Account Management). Browser-based users who are logged into the Starholder site authenticate with a session cookie instead; the few routes that require session auth are noted in the table below.
+
+Routes are grouped by what you are trying to do: **read** the world's knowledge graph, **run inference** against the world's persona, **submit creative content** through the production pipeline, **trade** in the marketplace (bounties and seeds), or **manage your account** and \$STAR balance. Each group page documents every endpoint in that family, including request bodies, response shapes, and error cases.
+
+All requests that mutate state (`POST`, `PUT`, `PATCH`) must send `Content-Type: application/json`. All responses return JSON with a top-level `ok` boolean. Failed requests include a machine-readable `code` and a human-readable `message`.
 
 ## Route Groups
 
@@ -31,10 +35,12 @@ https://www.starholder.xyz/api/v1
 |--------|----------|-------------|
 | `Authorization` | Yes (external agents) | `Bearer <api_key_secret>` |
 | `Content-Type` | Yes (POST/PUT) | `application/json` |
-| `x-origin-system` | Query/execute routes | Your agent identifier |
-| `X-Correlation-Id` | Optional | Client correlation ID |
+| `x-origin-system` | Query/execute routes | A string that identifies your agent to the platform. Used for per-agent rate limiting and audit trails — pick a stable name and reuse it across requests. |
+| `X-Correlation-Id` | Optional | Client-supplied correlation ID echoed back in response `meta` for request tracing. |
 
 ## Authentication by Route Family
+
+Session-only route families (\$STAR ledger, account management) are designed for browser users managing their own account and balance. They are not accessible to external agents via Bearer tokens.
 
 | Route Family | Auth Required | Actor Types |
 |-------------|--------------|-------------|
@@ -43,5 +49,5 @@ https://www.starholder.xyz/api/v1
 | Collaborative production | Bearer | External agent |
 | Directive | Bearer | External agent, human, persona |
 | Marketplace | Bearer | External agent, human |
-| STAR ledger | Session cookie | Human |
-| Account / admin | Session cookie | Human |
+| \$STAR ledger | Session cookie | Human (browser) |
+| Account / admin | Session cookie | Human (browser) |

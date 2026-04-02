@@ -3,7 +3,7 @@ title: Submission Lifecycle
 description: End-to-end guide for submitting narratives, managing extraction, fulfilling media, and completing the pipeline.
 ---
 
-This guide walks through the complete submission lifecycle — from narrative submit to finalization.
+This guide walks through the complete submission lifecycle — the process by which stories enter the world. External creators write narratives, the platform analyzes them to extract world objects (entities, settings, relationships, scenes), generates a media plan listing the images that need to be produced, and then integrates everything into the knowledge graph. This pipeline exists so that every story added to the world is structurally consistent, richly linked, and accompanied by visual media.
 
 ## Overview
 
@@ -21,7 +21,6 @@ This guide walks through the complete submission lifecycle — from narrative su
 ## Step 1 — Submit Narrative
 
 ```bash
-# Compute content hash first
 HASH=$(echo -n "$NARRATIVE_TEXT" | shasum -a 256 | cut -d' ' -f1)
 
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narrative \
@@ -41,7 +40,7 @@ Save the `submissionId` — you'll need it for every subsequent step.
 
 ## Step 2 — Poll for Extraction
 
-The platform runs its FT extractor on your narrative asynchronously. Poll until ready:
+The platform's extraction pipeline analyzes your narrative asynchronously — identifying entities (people, organizations, technologies), settings (places, eras), relationships between them, and scene boundaries. Poll until the extraction is ready:
 
 ```bash
 curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/extraction \
@@ -64,7 +63,7 @@ curl -X POST .../submit/$SUBMISSION_ID/correction \
 
 ## Step 4 — Set Fulfillment Strategy
 
-Choose how media will be produced:
+Choose how the media in your work manifest will be produced. This decision is permanent for a given submission — once set, it cannot be changed (**409** `ERR_STRATEGY_ALREADY_SET`).
 
 ```bash
 curl -X POST .../submit/$SUBMISSION_ID/manifest/strategy \
@@ -73,13 +72,11 @@ curl -X POST .../submit/$SUBMISSION_ID/manifest/strategy \
   -d '{ "strategy": "self" }'
 ```
 
-| Strategy | Description |
-|----------|-------------|
-| `unattended` | Platform generates media automatically |
-| `self` | You fulfill media yourself |
-| `post_bounty` | Post to marketplace for other creators |
-
-Strategy cannot be changed once set (**409** `ERR_STRATEGY_ALREADY_SET`).
+| Strategy | Behavior |
+|----------|----------|
+| `unattended` | The platform generates all required media automatically using its own image pipeline. Best for hands-off submissions where you don't need creative control over the visuals. |
+| `self` | You produce and upload the media yourself using the media fulfillment endpoint. Choose this when you want full creative control over the images. |
+| `post_bounty` | The platform posts a marketplace bounty so another creator can claim the media work and produce the images. Choose this when you want human-crafted visuals but don't want to make them yourself. |
 
 ## Step 5 — Set Creative Brief (Optional)
 
@@ -94,7 +91,7 @@ curl -X PUT .../submit/$SUBMISSION_ID/manifest/brief \
 
 ## Step 6 — Fulfill Media (Self Strategy)
 
-If you chose `self`, upload media for each manifest item:
+If you chose `self`, upload media for each **manifest item**. A manifest item is a specific image the platform identified as needed during extraction — for example, a portrait of a character, an illustration of a key scene, or a depiction of a setting. Each item has an ID from the work manifest.
 
 ```bash
 curl -X POST .../submit/$SUBMISSION_ID/media \
@@ -129,15 +126,13 @@ curl -X POST .../submit/$SUBMISSION_ID/media/review \
 
 ## Step 8 — Complete
 
-Trigger finalization:
+Trigger the finalization pipeline. During finalization, the platform binds your story, its extracted entities and settings, and its media into a canonical bundle in the world's knowledge graph. The backlot orchestrator processes the bundle, and \$STAR attribution is triggered based on what you contributed — narrative authorship, media production, or both.
 
 ```bash
 curl -X POST .../submit/$SUBMISSION_ID/complete \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json"
 ```
-
-This hands off to the platform's finalization pipeline, which binds the content into the world graph, runs the backlot orchestrator, and triggers $STAR attribution.
 
 ## Monitoring Progress
 

@@ -3,6 +3,8 @@ title: Admin
 description: Administrative routes for managing actors, keys, quotas, and STAR ledger operations.
 ---
 
+These are platform administration routes restricted to users with admin scopes — they are not available to regular users or external agents.
+
 Admin routes require a session with admin scopes (`admin:metrics` or `admin:debug`).
 
 ## GET /admin/actors
@@ -45,11 +47,11 @@ Audit trail for any API key.
 
 ---
 
-## STAR Admin Routes
+## \$STAR Admin Routes
 
 ### GET /star/admin/supply
 
-Global $STAR supply report.
+Global \$STAR supply report.
 
 **Auth:** STAR internal token (`x-star-ledger-token`)
 
