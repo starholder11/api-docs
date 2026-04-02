@@ -1,11 +1,21 @@
 ---
 title: SSE Streaming
-description: Consume real-time world emissions via Server-Sent Events.
+description: Real-time structured media streaming from the world — the foundation for building entertainment products, live experiences, and reactive applications.
 ---
 
-The Starholder API provides two **SSE (Server-Sent Events)** endpoints for real-time consumption of world activity. SSE is a standard for streaming data from server to client over a persistent HTTP connection — the server pushes events as they happen, and the client receives them in order.
+## The Broadcast Layer
 
-## External Agent Stream
+The SSE stream is not just a debugging tool or a convenience for real-time UIs. It is Starholder's **media broadcast layer** — the live, structured output of the world's reasoning, delivered as it happens.
+
+Every time the persona thinks, the stream carries the full cognitive output: prose arriving word by word, entity references as they are touched, resolved imagery for each, atmospheric signals from the settings involved, and a final structured snapshot that captures everything the turn produced. This is the raw material from which external applications build their products.
+
+A podcast agent listens to the stream, captures the prose and epistemic signals, and produces episodes framed around what the world just thought. A documentary tool consumes text, media bundles, and entity refs to assemble narrated segments with archival imagery and entity identification cards. An interactive experience reads the refs and topology signals to build navigable exploration interfaces. A live dashboard monitors gap coordinates and seed activity to surface real-time creative opportunities.
+
+None of these products need to parse natural language or reconstruct structure from chat output. The stream delivers typed, machine-readable events that separate content from structure. The prose is there for human consumption. The refs, media, topology, and epistemic signals are there for programmatic consumption. Your application decides which parts it needs.
+
+---
+
+## Connecting
 
 ```
 GET /api/v1/world/{worldId}/stream
@@ -15,32 +25,89 @@ Authorization: Bearer <api_key>
 **Requirements:**
 - `canQuery` capability
 - `world:read` scope
-- `EMISSION_SURFACE_EXTERNAL_SSE_ENABLED` must be `true` on the server (returns 503 if disabled)
-
-### Connecting with curl
-
-Browser `EventSource` cannot send custom headers, so use `curl` for Bearer-authenticated SSE:
 
 ```bash
 curl -N -H "Authorization: Bearer $API_KEY" \
   "https://www.starholder.xyz/api/v1/world/starholder_main/stream"
 ```
 
-### Event Types
+The connection stays open. Events arrive as the world operates. When idle, you receive `ping` keepalives every 30 seconds.
+
+---
+
+## What Arrives on the Stream
+
+### During Generation
+
+As the persona reasons, you receive events in real time:
+
+| Event | What It Carries | What You Can Build With It |
+|-------|----------------|---------------------------|
+| `text_delta` | Incremental prose chunks | Live text rendering, real-time transcription, TTS feed |
+| `ref_accepted` | Entity/setting references the persona is touching | Live entity tracking, knowledge graph visualization, topic monitoring |
+| `ref_media_bundle` | Resolved imagery for each referenced entity or setting | Live image gallery, visual narrative, media deck |
+
+These events arrive interleaved — text flows continuously while refs and media flush in batches between generation bursts. Your application can render text immediately while queuing metadata for the next animation frame.
+
+### At Finalization
+
+When the persona finishes reasoning:
+
+| Event | What It Carries | What You Can Build With It |
+|-------|----------------|---------------------------|
+| `text_replacement` | The finalized annotated text with inline entity tags | Linked, navigable prose with entity hyperlinks |
+| `ref_anomaly` | Refs the persona tried to use but were rejected | Quality monitoring, hallucination detection |
+| `media_placement_map` | Per-mention image placements with sentence context | Inline illustrations positioned against specific text passages |
+| `atmosphere_context` | Full context layer: atmosphere, music, scene profile, canonical setting | Immersive environment rendering, ambient soundscape, mood-driven UI |
+
+### At Commit
+
+| Event | What It Carries | What You Can Build With It |
+|-------|----------------|---------------------------|
+| `thoughtpacket_committed` | Epistemic data: claims, uncertainty, support score | Confidence framing, fact-checking display, research annotation |
+| `contradiction_detected` | Conflicting claims with severity classification | "Competing accounts" segments, investigative narrative |
+| `surface_complete` | The full Emission Surface — all 8 layers, authoritative snapshot | Complete turn archive, offline processing, consistency checkpoint |
+
+### Lifecycle Events
 
 | Event | Description |
 |-------|-------------|
-| `text_delta` | An incremental chunk of the persona's response as it is being generated. These arrive in sequence and can be concatenated to build the full output. |
-| `ref_*` | Reference events (`ref_entity`, `ref_setting`, `ref_relationship`, etc.) emitted when the persona touches an entity, setting, or relationship during reasoning. Use these to track what the persona is drawing on. |
-| `surface_complete` | The final, complete structured response for this reasoning turn. This is the terminal event — the stream closes after it. |
-| `done` | Stream end signal. |
-| `ping` | Keepalive sent every 30 seconds. |
-| `timeout` | Sent after 300 seconds of idle (no events). The stream closes. |
-| `error` | Error envelope: `{ type: 'error', data: { code, message } }` |
+| `ping` | Keepalive every 30 seconds |
+| `timeout` | 300 seconds of idle — the stream closes |
+| `error` | Structured error with `code` and `message` |
+| `done` | Stream end signal |
 
-The **PEE (Protocol Emission Engine)** is the world's reasoning runtime — it coordinates persona inference, emits the events above, and manages the lifecycle of each reasoning turn.
+---
 
-### Resuming a Stream
+## Building on the Stream
+
+### Live Narrative Products
+
+The simplest use: concatenate `text_delta` events into a growing text display. As refs arrive, highlight mentioned entities in the text. As media bundles arrive, display imagery alongside the entities they belong to. When `atmosphere_context` arrives, adjust the visual environment — lighting, color palette, ambient sound.
+
+This is how the Starholder hemisphere works. Your product can do the same thing with completely different presentation.
+
+### Structured Media Packages
+
+Wait for `surface_complete` and consume the full Emission Surface as a single structured document. Extract the layers you need:
+
+- **Podcast:** `text.clean` for narration script + `epistemic.claims` for segment structure + `epistemic.contradictions` for "competing accounts" segments
+- **Documentary:** `text.clean` for voiceover + `media.bundles` for archival imagery + `refs.accepted` for lower-third entity cards + `context.atmosphere` for environmental framing
+- **Research report:** `epistemic.claims` with confidence scores + `topology.sparsity` for territory assessment + `refs.catalog` for full evidence base
+- **Interactive exploration:** `refs.accepted` for entity graph nodes + `media.placements` for per-mention imagery + `topology.anchors` for navigation starting points
+
+### Reactive Monitoring
+
+Hold the stream open and watch for patterns:
+
+- Track `topology.sparsity` across turns to identify when the persona enters thin territory
+- Monitor `ref_accepted` events to build a live entity frequency map
+- Watch `contradiction_detected` events to flag emerging narrative tensions
+- Use `atmosphere_context` to drive ambient media in physical installations
+
+---
+
+## Resuming After Disconnection
 
 Supply the `Last-Event-ID` header or `?lastSeq=` query parameter with the last received sequence number:
 
@@ -50,52 +117,22 @@ curl -N -H "Authorization: Bearer $API_KEY" \
   "https://www.starholder.xyz/api/v1/world/starholder_main/stream"
 ```
 
-The server replays events from the buffer since that sequence number (up to 200 events).
+The server replays events from its buffer since that sequence number (up to 200 events). If the turn completed while you were disconnected, fetch the persisted snapshot instead:
 
-### Stream Lifecycle
-
-1. Connect with Bearer auth.
-2. Receive `ping` events every 30s while idle.
-3. When a turn executes, receive `text_delta` and `ref_*` events as the persona reasons.
-4. `surface_complete` signals the end of a turn's emission.
-5. If idle for 300s, receive `timeout` and the stream closes.
-6. Reconnect with `Last-Event-ID` to resume.
+```bash
+curl "https://www.starholder.xyz/api/v1/world/starholder_main/turns/{turnId}/surface" \
+  -H "Authorization: Bearer $API_KEY"
+```
 
 ---
 
-## Human Hub Stream
+## Stream Lifecycle
 
-> **Browser integrations only.** The hub is designed for browser-based clients that authenticate via session cookies. External agents should use the agent stream above instead.
+1. Connect with Bearer auth
+2. Receive `ping` every 30s while idle
+3. When a turn executes, receive `text_delta` and `ref_*` events as the persona reasons
+4. `surface_complete` signals the turn is done — all 8 layers are finalized
+5. If idle for 300s, receive `timeout` and the stream closes
+6. Reconnect with `Last-Event-ID` to resume
 
-```
-POST /api/world-program/hub
-Content-Type: application/json
-Cookie: <session_cookie>
-
-{"userMessage": "Tell me about Fred", "worldId": "starholder_main"}
-```
-
-The hub is the primary human interaction endpoint. It returns SSE for the duration of a single execution turn and includes additional event types for the browser UI, including events that drive the **hemisphere** — the 3D visualization of the world that browser users see.
-
-### Hub Event Types
-
-| Event | Description |
-|-------|-------------|
-| `ack` | Request acknowledged with `executionId` |
-| `wig_frame` | World Interaction Governor state |
-| `flow_start` / `flow_complete` / `flow_failed` | DAG flow lifecycle |
-| `node_start` / `node_complete` / `node_failed` | Flow node lifecycle |
-| `delta` | Incremental content (payload at `data.data`) |
-| `content` | Content block (payload at `data.delta`) |
-| `tool` / `tool_trace` | Tool execution events |
-| `text_delta` / `ref_*` | PEE emission events (same as agent stream) |
-| `surface_complete` | Terminal PEE event |
-| `bounty_workbench_open` | Bounty flow activation |
-| `star:balance_changed` | Real-time \$STAR balance update |
-| `done` | Stream end |
-| `error` | Structured error |
-| `ping` | 30s keepalive |
-
-### Rate Limiting
-
-The hub enforces per-user rate limits. When exceeded, returns **429** with JSON `{ error }` and rate-limit headers.
+See the [Emission Surface Guide](/docs/guides/emission-surface) for a complete field-by-field reference of what `surface_complete` contains.
