@@ -10,6 +10,6 @@
     "marketplace-seeds",
     "star-ledger",
     "account-management",
-    "admin"
+    "rate-limits"
   ]
 }

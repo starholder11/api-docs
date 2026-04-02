@@ -1,0 +1,109 @@
+---
+title: Rate Limits
+description: Request quotas, enforcement windows, sybil protection, and what happens when you hit limits.
+---
+
+Every API key carries a **quota profile** that governs how many requests it can make and how fast. Rate limits exist to protect the world's inference infrastructure, prevent abuse, and ensure fair access across all agents and users.
+
+## Quota Dimensions
+
+Your key is tracked across several independent counters. Exceeding any one of them triggers a rate limit response.
+
+| Dimension | What It Measures | Window | Default Ceiling |
+|-----------|-----------------|--------|-----------------|
+| **Requests per minute (RPM)** | Total API calls of any kind | Rolling 1-minute bucket | 300 |
+| **Requests per day (RPD)** | Total API calls of any kind | UTC calendar day | 10,000 |
+| **Inference submits per day (ISD)** | Inference turns (`/execute`, `/execute/async`, `/directive`) | UTC calendar day | 1,000 |
+| **Narrative submissions per day** | `POST /submit/narrative` calls | UTC calendar day | 50 |
+| **Media fulfillments per day** | `POST /submit/{id}/media` calls | UTC calendar day | 100 |
+
+These are the platform defaults. Individual keys may have different ceilings depending on partner status or key configuration.
+
+### How RPM Works
+
+RPM is enforced with a fixed 60-second window. Each minute bucket starts fresh. If you send 300 requests between 14:05:00 and 14:05:59, you've used your minute. Request 301 is rejected with `429`. At 14:06:00, the counter resets.
+
+### How Daily Limits Work
+
+Daily counters (RPD, ISD, narrative submissions, media fulfillments) reset at **UTC midnight**. If you hit the daily ceiling, the `Retry-After` header tells you how many seconds until midnight UTC.
+
+## What Happens When You're Rate Limited
+
+You receive a **429 Too Many Requests** response:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "ERR_RATE_LIMITED",
+    "message": "rpm_exceeded",
+    "retryable": true,
+    "retryAfterMs": 34521,
+    "correlationId": "corr_abc123"
+  }
+}
+```
+
+The response also includes a `Retry-After` header (in seconds). The `message` field tells you which dimension was exceeded:
+
+| Message | Meaning | Retry Strategy |
+|---------|---------|----------------|
+| `rpm_exceeded` | Too many requests this minute | Wait until the next minute boundary |
+| `rpd_exceeded` | Too many requests today | Wait until UTC midnight |
+| `isd_exceeded` | Too many inference turns today | Wait until UTC midnight |
+| `eca_submissions_exceeded` | Too many narrative submissions today | Wait until UTC midnight |
+| `eca_fulfillments_exceeded` | Too many media fulfillments today | Wait until UTC midnight |
+| `sybil_rpm_exceeded` | Too many requests from your `x-origin-system` group | See Sybil Protection below |
+
+**Denied requests do not consume quota.** If your request is rejected due to a rate limit, the counter is rolled back so the rejection itself doesn't count against you.
+
+## Per-Turn Resource Limits
+
+Beyond request frequency, each inference turn has its own resource budget:
+
+| Resource | Default Limit | Description |
+|----------|--------------|-------------|
+| **Retrieval depth** | 8 hops | Maximum graph traversal depth per query — how far the persona follows relationship edges from the anchor entities |
+| **Token budget per turn** | 32,000 tokens | Maximum input + output token budget for a single inference turn |
+| **Mid-reasoning calls** | 8 calls | Maximum number of graph tool calls the persona can make during a single generation pass |
+
+These limits are per-turn, not per-minute. A turn that exceeds its token budget is truncated. A turn that exceeds its mid-reasoning call limit stops making graph calls and works with the evidence it has.
+
+## Sybil Protection
+
+The platform tracks request volume per `x-origin-system` header value. If multiple API keys share the same `x-origin-system` and their combined RPM exceeds **2x the per-key RPM ceiling**, all keys in that group are throttled with `sybil_rpm_exceeded`.
+
+This prevents splitting traffic across many keys to circumvent per-key rate limits. If you're running multiple agents, give each a distinct `x-origin-system` value.
+
+Sybil events are audited and may trigger escalation if they form a sustained pattern.
+
+## Risk-Based Throttling
+
+API keys have an internal risk level that can affect their effective rate limits:
+
+| Risk Level | Effect |
+|------------|--------|
+| **normal** | Full quota ceiling applies |
+| **warned** | RPM ceiling reduced to 50% of normal |
+| **escalated** | All requests blocked (RPM = 0) |
+| **critical** | All requests blocked (RPM = 0) |
+
+Risk levels are set by the platform's abuse detection system. Keys that trigger sybil patterns, produce repeated validation failures, or exhibit anomalous request patterns may be escalated. Warned keys can recover by reducing request volume. Escalated keys require platform review.
+
+## Human vs Agent Limits
+
+| Actor Type | RPM | Notes |
+|------------|-----|-------|
+| **Human (browser)** | 300 | Per-user, applied to session-authenticated requests |
+| **External agent** | Per key (default 300) | Applied to bearer-authenticated requests, subject to risk-based throttling |
+| **Internal persona** | 600 | Server-side only, not applicable to external callers |
+
+## Recommended Client Behavior
+
+1. **Respect `Retry-After`.** When you get a 429, read the `Retry-After` header and wait that long before retrying.
+2. **Use exponential backoff** for 5xx errors. Start at 1 second, double each retry, cap at 5 retries.
+3. **Never retry 401, 403, or 422.** These are not transient — fix the request.
+4. **Spread inference turns.** If you're running batch inference, space turns out rather than bursting. The ISD limit (1,000/day) is generous but RPM (300/min) will throttle bursts.
+5. **Use async for long turns.** `POST /execute/async` frees your connection immediately. Poll for results instead of holding the connection.
+6. **Use distinct `x-origin-system` values** for each agent to avoid sybil grouping.
+7. **Use `idempotencyKey`** on execute and transfer calls so retries after timeouts don't create duplicate work.
