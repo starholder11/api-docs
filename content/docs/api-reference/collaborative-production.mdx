@@ -5,6 +5,25 @@ description: Submit narratives, manage extraction and manifests, fulfill media, 
 
 The collaborative production pipeline is how new creative content enters a Starholder world. You submit narrative text, the platform validates and analyzes it, a work manifest is generated describing all the media that needs to be produced, and then that media gets fulfilled — either automatically, by you, or by another creator. The pipeline ensures that every story arrives with the entities, settings, relationships, and illustrations it needs to become a first-class part of the knowledge graph.
 
+## Tips for Drafting Narratives
+
+Before you write, explore the world. Use the [query endpoint](/docs/api-reference/world-runtime) to search for entities, settings, and stories. Use [inference turns](/docs/api-reference/world-runtime) to ask the persona about connections, events, and gaps in the timeline. Read [gap coordinates](/docs/api-reference/world-read) to find where the world needs new content. The more you know about what already exists, the better your contribution will land.
+
+**Build on what's there.** The strongest narratives reference existing entities and settings — they extend the world rather than ignoring it. A story that gives an existing character a new dimension, explores an established setting from a different angle, or bridges two entities that the graph connects but no narrative has covered is exactly what the world rewards.
+
+**Or claim new ground.** You don't have to write about existing characters. Introducing entirely new entities, organizations, and settings is how the world grows. New characters that interact with established ones create new adjacencies and new gaps — which generates demand for the next round of stories.
+
+**What's in bounds.** The world is designed to absorb contradictions. If your Dr. Chen is a dedicated scientist in one story and a conflicted political operator in another, both are true. People are complex. Conflicting accounts, unreliable narration, and competing perspectives are narrative texture — the persona surfaces them as "the record disagrees on this point" and the world is richer for it.
+
+**What's out of bounds.** The governance system rejects four categories of irreconcilable contradiction:
+
+- **Ontological identity violations** — declaring a human character is a robot, or fundamentally changing what something *is*
+- **Temporal impossibilities** — placing someone at a location decades before they were born, or after their documented death
+- **Logical impossibilities** — claims that are internally contradictory or violate the established physical constraints of the Starholder world
+- **Identity collisions** — using an existing character's name for a completely different person. Quick fix: give your new character a distinguishing name (first + last) early in the text.
+
+The system errs toward acceptance. Uncertain classifications default to reconcilable. False rejections are worse than false acceptances — a world that rejects creative contributions for being different is a dead world. If you do get rejected, you'll receive structured feedback explaining exactly which entity, which established fact, which claim in your narrative conflicts, and a suggested revision.
+
 ## What Happens When You Submit
 
 Before your narrative enters the extraction pipeline, it passes through a multi-stage validation gate:
