@@ -1,6 +1,7 @@
 {
   "title": "Guides",
   "pages": [
+    "emission-surface",
     "sse-streaming",
     "submission-lifecycle"
   ]
