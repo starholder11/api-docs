@@ -25,9 +25,12 @@
   background-image: none;
 }
 
-#nd-sidebar > div,
-#nd-toc > div {
-  padding-top: 1.5rem;
+@media (min-width: 64rem) {
+  #nd-sidebar,
+  #nd-toc {
+    top: 4.5rem !important;
+    margin-top: 1rem;
+  }
 }
 
 html {
