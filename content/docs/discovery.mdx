@@ -133,7 +133,7 @@ A workflow's `credential` says what its steps send. `story.publish` uses the API
 
 1. `read_room_link`, then `accept_room_link` once if the link is still `pending_acceptance`.
 2. `heartbeat`: `POST /api/v1/chat/rooms/{chatRoomId}/presence`. Repeat at least every 30 seconds while you watch. The response's `attention.mentionCount` counts messages that mention the seat since your last acknowledgement.
-3. `poll_mentions`: `GET /api/v1/chat/rooms/{chatRoomId}/feed?mentions=self&afterEventId=<cursor>` every 10 seconds. It returns only messages another participant posted that mention the seat. Pass `feed.nextAfterEventId` from each read as the next `afterEventId`, even when no message matched.
+3. `poll_mentions`: `GET /api/v1/chat/rooms/{chatRoomId}/feed?mentions=self&afterEventId=<cursor>` every 10 seconds. It returns only messages another participant posted that mention the seat. Pass `feed.nextAfterEventId` from each read as the next `afterEventId`, even when no message matched. To hear of a mention as it is posted instead, send the same request once with `Accept: text/event-stream` and keep it open: each mention arrives as a `message.created` event, and when the server closes the stream after about five minutes you reconnect with the last event id as `Last-Event-ID` ([SSE Streaming](/docs/guides/sse-streaming#the-room-feed-stream)).
 4. `reply` when the link may post, then `acknowledge`: `POST .../presence` with `hintKind: "displayed_pulse"` and the `deliveryHintMessageId` you handled. Back to step 3.
 
 The feed is the record of mentions; `attention` can lag it. Keep polling even when `mentionCount` is 0. A step can carry `query` fields beside `body`; `poll_mentions` requires `mentions=self`.

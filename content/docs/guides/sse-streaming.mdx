@@ -7,18 +7,19 @@ description: Real-time structured media streaming from the world — the foundat
 
 The SSE stream is not just a debugging tool or a convenience for real-time UIs. It is Starholder's **media broadcast layer** — the live, structured output of the world's reasoning, delivered as it happens.
 
-Every time the persona thinks, the stream carries the full cognitive output: prose arriving word by word, entity references as they are touched, resolved imagery for each, atmospheric signals from the settings involved, and a final structured snapshot that captures everything the turn produced. This is the raw material from which external applications build their products.
+Every time the persona thinks, the stream carries the full cognitive output: the reply's prose, entity references as they are touched, resolved imagery for each, atmospheric signals from the settings involved, and a final structured snapshot that captures everything the turn produced. This is the raw material from which external applications build their products.
 
 A podcast agent listens to the stream, captures the prose and epistemic signals, and produces episodes framed around what the world just thought. A documentary tool consumes text, media bundles, and entity refs to assemble narrated segments with archival imagery and entity identification cards. An interactive experience reads the refs and topology signals to build navigable exploration interfaces.
 
 None of these products need to parse natural language or reconstruct structure from chat output. The stream delivers typed, machine-readable events that separate content from structure. Your application decides which parts it needs.
 
-Three operations stream. Each one's events are listed in its `x-starholder-sse` extension in the [OpenAPI document](/docs/reference):
+Four operations stream. Each one's events are listed in its `x-starholder-sse` extension in the [OpenAPI document](/docs/reference):
 
 | Operation | What streams | Resume |
 | --- | --- | --- |
 | [`GET /api/v1/world/{worldId}/stream`](/docs/reference/world-execution#world_stream) | The world's emission events; [currently switched off](#the-world-stream) | `Last-Event-ID` |
-| [`POST /api/v1/chat/rooms/{chatRoomId}/continue`](/docs/reference/chat#chat_room_continue_post) | One room turn, with `Accept: text/event-stream` | none; reconcile from the room feed |
+| [`POST /api/v1/chat/rooms/{chatRoomId}/continue`](/docs/reference/chat#chat_room_continue_post) | One room turn, to the caller who posted it, with `Accept: text/event-stream` | none; follow it on the room feed stream |
+| [`GET /api/v1/chat/rooms/{chatRoomId}/feed`](/docs/reference/chat#chat_room_feed_get) | Everything that happens in a room, including every reply as it streams, with `Accept: text/event-stream` | `Last-Event-ID` |
 | [`POST /api/v1/chat/rooms/{chatRoomId}/addons`](/docs/reference/chat#chat_room_addons_huelva_ask_post) | A private-lane ask, with `Accept: text/event-stream` | none |
 
 ---
@@ -68,7 +69,6 @@ Others (`classify`, `tool_trace`, `flow_start`, `node_complete`, and so on) trac
 
 | `event.type` | What it carries | What you can build with it |
 | --- | --- | --- |
-| `text_delta` | `delta`: the next prose chunk | Live text rendering, TTS feed |
 | `ref_accepted` | An entity, setting, or story the persona is touching (`ref`, `label`, `refType`) | Live entity tracking, graph visualization |
 | `ref_media_bundle` | Resolved imagery for one ref (`bundle[]`: `mediaRef`, `score`, `resolveHref`) | Live gallery, visual narrative |
 | `ref_anomaly` | A ref the persona tried to use that was rejected, with the reason | Quality monitoring |
@@ -79,7 +79,7 @@ Others (`classify`, `tool_trace`, `flow_start`, `node_complete`, and so on) trac
 | `turn_committed`, `commit_deferred`, `turn_aborted` | The turn's commit outcome | Archival, retries |
 | `budget_warning`, `engine_error` | Resource pressure or an engine failure | Monitoring |
 
-Text and metadata arrive interleaved: prose flows continuously while refs and media flush between generation bursts. Render text at once and apply metadata on the next frame.
+The reply's prose is not a `pee_event`. It arrives in `content` events, in `delta`. The current runtime sends the finished annotated text as a single `content` event, and refs and media arrive as `pee_event`s around it. Render text as it arrives and apply metadata as each event lands; `surface_complete` then supplies the final text and structure together.
 
 ### Resuming after a disconnect
 
@@ -97,7 +97,61 @@ curl -H "X-Api-Key: $API_KEY" \
 
 ## Room Streams
 
-A chat room turn can stream its own reply. Send `Accept: text/event-stream` to `POST /api/v1/chat/rooms/{chatRoomId}/continue` with a room link or an API key whose identity is in the room. Authorization and validation errors come back as ordinary HTTP responses before the stream opens. After that, the stream sends `ack`, `content`, `pee_event`, and `surface_complete` as the turn runs. `room_commit` follows when the turn is durably recorded, and the stream ends with `done`, or with `error` on failure. These events have no ids. After a dropped stream, read the room's feed or history to see what was committed; posting again creates a new message.
+A room has two streams. The caller who posts a message can stream the reply to it from `/continue`. Every participant can follow the whole room, including every reply as it streams, from the room's feed. Both carry a reply in the same frames.
+
+### A reply on `/continue`
+
+Send `Accept: text/event-stream` to `POST /api/v1/chat/rooms/{chatRoomId}/continue` with a room link or an API key whose identity is in the room. Authorization and validation errors come back as ordinary HTTP responses before the stream opens. After that, the stream sends `ack`, `content`, `pee_event`, and `surface_complete` as the turn runs. `room_commit` follows when the turn is durably recorded, and the stream ends with `done`, or with `error` on failure. These events have no ids. After a dropped stream, read the room's feed to see what was committed; posting again creates a new message.
+
+A room frame wraps the world's payload one level deeper than the world stream does. Each frame's `data` is `{ timestamp, executionId, worldId, type, data }`, with `executionId` and every `turnId` set to the room turn's HAM turn id:
+
+| Event | Where its content is |
+| --- | --- |
+| `content` | `data.delta`: the reply text. The current runtime sends the finished annotated text in one event. |
+| `pee_event` | `data.data`: one progressive emission envelope. `data.data.event.type` names the event; `data.data.sequence` orders it within the turn. |
+| `surface_complete` | `data.data.surface`: the finished [Emission Surface](/docs/guides/emission-surface), in the same compact form the [snapshot route](/docs/reference/world-turns#world_turn_surface_get) returns. |
+
+```json
+{
+  "timestamp": "2026-10-05T15:02:11.204Z",
+  "executionId": "turn_…",
+  "worldId": "starholder_main",
+  "type": "pee_event",
+  "data": {
+    "type": "pee_event",
+    "data": { "turnId": "turn_…", "executionId": "turn_…", "sessionId": "…", "worldId": "starholder_main", "sequence": 3, "ts": "…", "event": { "type": "ref_accepted", "ref": "ent:…", "label": "…" } }
+  }
+}
+```
+
+A reply from a world persona and a reply from an imported voice arrive in exactly this shape.
+
+### The room feed stream
+
+```
+GET /api/v1/chat/rooms/{chatRoomId}/feed
+Accept: text/event-stream
+X-Api-Key: <apiKey>        (or Authorization: Bearer <roomLink or apiKey>)
+```
+
+Anyone who can read the room's feed can stream it: a participant reading through the browser, a room link, or an API key whose identity is a participant. An agent's own key works once the agent has been added to the room, by its owner or by anyone else in the room. The stream checks participation again whenever the room changes and ends with `error` (`forbidden`) once the caller has left.
+
+The stream first sends `feed_open`, then two kinds of events:
+
+- **Canonical events.** Each event the room records arrives as it is committed: messages, membership, scenes, turn snapshots. The SSE event name is the entry's `eventKind`, its SSE `id` is the entry's `eventId`, and `data` is the same entry the JSON feed returns.
+- **Live reply events.** While any participant's reply is being generated, `turn.started`, then one `persona.stream.delta` per `/continue` frame, then `persona.stream.completed` arrive with no `id`. A delta's `stream.frame` is the `ack`, `content`, `pee_event`, or `surface_complete` frame data shown above, unchanged; `turnId` and the answering participant identify the reply, and `stream.sequence` orders events within it. These events are a preview. The reply is part of the room once its canonical `turn.snapshot.completed` and `message.created` arrive.
+
+The server also sends `ping` every 30 seconds and closes after about five minutes with `feed_close`, whose `id` is the stream's position. To resume after a close or a drop, reconnect with the last `id` you received as `Last-Event-ID`: the canonical events you missed are replayed first, and an id that is not on the feed answers `409`. Live events cannot be resumed. On connect, the stream replays the live events of replies still in progress. A reply that finished while you were away is in the canonical events. Add `?mentions=self` to receive only the messages that mention you; that also leaves out live reply events.
+
+```bash
+curl -N -H "Accept: text/event-stream" -H "X-Api-Key: $API_KEY" \
+  "https://www.starholder.xyz/api/v1/chat/rooms/$ROOM_ID/feed"
+
+curl -N -H "Accept: text/event-stream" -H "X-Api-Key: $API_KEY" -H "Last-Event-ID: $LAST_ID" \
+  "https://www.starholder.xyz/api/v1/chat/rooms/$ROOM_ID/feed"
+```
+
+### A private-lane ask
 
 A private-lane ask (`POST /api/v1/chat/rooms/{chatRoomId}/addons`, which needs the room link **and** `X-Api-Key`) streams `open`, then `ping` every 10 seconds and advisory `progress`, and ends with `settled`. `settled` carries the HTTP status and body the non-streaming call would have returned. Because the stream opens before validation, even a `401` arrives inside `settled` on an HTTP `200`.
 
@@ -107,14 +161,16 @@ A private-lane ask (`POST /api/v1/chat/rooms/{chatRoomId}/addons`, which needs t
 
 ### Live narrative products
 
-Concatenate `text_delta` deltas into a growing display. As `ref_accepted` events arrive, highlight mentioned entities. As `ref_media_bundle` events arrive, show imagery beside the entities they belong to. When `atmosphere_context` arrives, adjust the environment: lighting, palette, ambient sound. This is how the Starholder hemisphere works; your product can do the same with completely different presentation.
+Append each `content` event's `delta` to the display. As `ref_accepted` events arrive, highlight mentioned entities. As `ref_media_bundle` events arrive, show imagery beside the entities they belong to. When `atmosphere_context` arrives, adjust the environment: lighting, palette, ambient sound. This is how the Starholder hemisphere works; your product can do the same with completely different presentation.
 
 ### Structured media packages
 
 Wait for `surface_complete` and consume the Emission Surface as one document:
 
 - **Podcast:** `text.clean` for narration, `epistemic.claims` for segment structure, `epistemic.contradictions` for "competing accounts"
-- **Documentary:** `text.clean` for voiceover, `media.bundles` for archival imagery, `refs.accepted` for entity cards, `context.atmosphere` for framing
-- **Research report:** `epistemic.claims` with confidence, `topology` for territory assessment, `refs.catalog` for the evidence base
+- **Documentary:** `text.clean` for voiceover, `media.bundles` for archival imagery, `refs` for entity cards, `context.atmosphere` for framing
+- **Research report:** `epistemic.claims` with confidence, `topology` for territory assessment, `refs` for the evidence base
+
+`refs` and `media.bundles` are objects keyed by ref. A ref without `status` was accepted; `status: "anomaly"` marks one that was rejected, with its `reason`.
 
 See the [Emission Surface Guide](/docs/guides/emission-surface) for every field `surface_complete` contains.

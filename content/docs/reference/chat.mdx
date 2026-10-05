@@ -3255,9 +3255,9 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
 | --- | --- |
 | `(comment)` | Initial ': ok' comment. |
 | `ack` | HAM execute-admission acknowledgement (passthrough). Envelope \{timestamp, executionId?, worldId?, type:'ack', data:&lt;sanitized raw ack data&gt;\}. |
-| `content` | Streaming reply content (passthrough). data is the sanitized raw content record with executionId, turnId (= executionId), and worldId stamped. |
-| `pee_event` | Presentation/emission event. data is double-wrapped: \{type:'pee_event', data:&lt;sanitized record with executionId, turnId, worldId&gt;\}. |
-| `surface_complete` | Authoritative surface. data = \{type:'surface_complete', data:\{...record, executionId, turnId, worldId, surface:&lt;sanitizeAuthoritativeSurface&gt;\}\}. |
+| `content` | Reply text. data is the content record \{type:'content', delta, executionId, turnId, worldId\}, with turnId and executionId set to the HAM turn id. Append each delta in order; the current runtime sends the finished annotated text in one content event. surface_complete's text.annotated and text.clean are the turn's final text. |
+| `pee_event` | One progressive emission event per frame. data is double-wrapped: \{type:'pee_event', data:&lt;PEEEventEnvelope&gt;\}, with the envelope's executionId and turnId set to the HAM turn id and worldId to the answering world. data.data.event.type names the event (ref_accepted, ref_media_bundle, media_placement_map, atmosphere_context, ...); data.data.sequence orders events within the turn and, with turnId, identifies each one. World-persona and imported-voice replies send the same shape. |
+| `surface_complete` | The turn's authoritative surface. data = \{type:'surface_complete', data:\{executionId, turnId, worldId, surface\}\}. surface is the compact WireEmissionSurface the snapshot route returns (refs and media.bundles keyed by ref), with identity.turnId and identity.executionId set to the HAM turn id. Replace everything accumulated from content and pee_event with it. |
 | `ping` | Heartbeat every 30s. |
 | `chat_direction_control` | Sent once after continueRoom returns, when result.controlOutcome is truthy. |
 | `room_commit` | Durable commit of the turn. Sent before wakeup and projection replay. Carries only events (no sourceMessage or assistantMessage fields). |
@@ -3266,7 +3266,7 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
 
 **Resume:** None. No SSE id fields are written and Last-Event-ID is not read. After a dropped stream, reconcile through GET /feed?afterEventId=... or GET /history. Re-posting creates a new message unless sourceMessageId is used (which room-link callers cannot use; see notes).
 
-**Schemas used:** [`ChatDialogueHandle`](/docs/reference/schemas#chatdialoguehandle), [`ChatDirectionControlOutcome`](/docs/reference/schemas#chatdirectioncontroloutcome), [`ChatFeedEntry`](/docs/reference/schemas#chatfeedentry), [`ChatMessageMutation`](/docs/reference/schemas#chatmessagemutation), [`ChatStoredMessageRecord`](/docs/reference/schemas#chatstoredmessagerecord), [`HuelvaTransportEnvelope`](/docs/reference/schemas#huelvatransportenvelope)
+**Schemas used:** [`ChatDialogueHandle`](/docs/reference/schemas#chatdialoguehandle), [`ChatDirectionControlOutcome`](/docs/reference/schemas#chatdirectioncontroloutcome), [`ChatFeedEntry`](/docs/reference/schemas#chatfeedentry), [`ChatMessageMutation`](/docs/reference/schemas#chatmessagemutation), [`ChatStoredMessageRecord`](/docs/reference/schemas#chatstoredmessagerecord), [`HuelvaTransportEnvelope`](/docs/reference/schemas#huelvatransportenvelope), [`PEEEventEnvelope`](/docs/reference/schemas#peeeventenvelope), [`WireEmissionSurface`](/docs/reference/schemas#wireemissionsurface)
 
 <sub>Contract authored from `app/api/v1/chat/rooms/[chatRoomId]/continue/route.ts` (confidence: medium).</sub>
 
@@ -3274,7 +3274,7 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
 
 `GET /api/v1/chat/rooms/{chatRoomId}/feed`
 
-**Poll the canonical room feed (tail or resume after an event id).** Returns canonical feed entries (messages with stored bodies and attachments, membership, scenes, and so on) in ascending event order. Without afterEventId it returns the last `limit` events. With afterEventId it returns up to `limit` events after that anchor, or 409 if the anchor is unknown. feed.nextAfterEventId is the afterEventId for the next read and feed.hasMoreAfter says another page is already waiting. With mentions=self it returns only the messages that mention the caller. This is a JSON polling endpoint: it never returns text/event-stream. Read-only and repeatable.
+**Read or stream the canonical room feed (tail, resume after an event id, or follow live).** Returns canonical feed entries (messages with stored bodies and attachments, membership, scenes, and so on) in ascending event order. Without afterEventId it returns the last `limit` events. With afterEventId it returns up to `limit` events after that anchor, or 409 if the anchor is unknown. feed.nextAfterEventId is the afterEventId for the next read and feed.hasMoreAfter says another page is already waiting. With mentions=self it returns only the messages that mention the caller. With Accept: text/event-stream it instead streams the feed: each new canonical event as it is committed, resumable with Last-Event-ID, plus the in-flight turn.started, persona.stream.delta, and persona.stream.completed events of room replies (see x-starholder-sse). Both forms have the same access rule: the caller must be a room participant. Read-only and repeatable.
 
 **Credentials.** Any one of: `Authorization: Bearer <inviteToken>` (room link); `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts the room-link token as Authorization: Bearer &lt;inviteToken&gt;, acting as the room seat (roomLinkUsage.seat.participantRef), or an API key or a signed-in session for a room participant; here an API key is its own key actor (agent:&lt;keyId&gt;), not its owner or the seat. With a valid room token, X-Api-Key is ignored. A token this room does not accept is checked as an API key and answers 401 ERR_AUTH_INVALID.
 
@@ -3285,9 +3285,11 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `chatRoomId` | path | yes | string | Room id. |
-| `limit` | query | no | number (–500, default 200) | Positive number (400 otherwise). Silently clamped to [1, 500]. Validated before authentication. |
-| `afterEventId` | query | no | string | Resume anchor; events strictly after it. |
-| `mentions` | query | no | "self" | self keeps the message.created events another participant posted whose mentionRefs address the caller's participantRef (a room link's seat). Any other value answers 400. The filter applies after the page is scanned, so feed.nextAfterEventId still covers every scanned event. |
+| `limit` | query | no | number (–500, default 200) | Positive number (400 otherwise). Silently clamped to [1, 500]. Validated before authentication. A stream validates it but does not use it. |
+| `afterEventId` | query | no | string | Resume anchor; events strictly after it. A stream starts after it; Last-Event-ID takes precedence. |
+| `mentions` | query | no | "self" | self keeps the message.created events another participant posted whose mentionRefs address the caller's participantRef (a room link's seat). Any other value answers 400. The filter applies after the page is scanned, so feed.nextAfterEventId still covers every scanned event. On a stream it filters the canonical events the same way and suppresses the live reply events; feed_close carries the stream's cursor as its id, so reconnecting from it does not rescan events already filtered out. |
+| `Accept` | header | no | string | Containing 'text/event-stream' streams the feed (x-starholder-sse) instead of returning one JSON page. |
+| `Last-Event-ID` | header | no | string | Streams only: the id of the last event received (a feed eventId). The stream replays the canonical events after it before following new ones. Takes precedence over afterEventId; an unknown id answers 409. |
 | `X-Correlation-Id` | header | no | string | Copied into auth errors. |
 
 **Responses**
@@ -3455,7 +3457,7 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
   }
   ```
 
-- **409**: afterEventId is not on the feed.
+- **409**: The resume anchor (Last-Event-ID on a stream, otherwise afterEventId) is not on the feed.
 
   `application/json`
 
@@ -3472,7 +3474,10 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
         "const": "invalid_resume_boundary"
       },
       "error": {
-        "const": "afterEventId does not exist on the canonical room feed"
+        "enum": [
+          "afterEventId does not exist on the canonical room feed",
+          "Last-Event-ID does not exist on the canonical room feed"
+        ]
       },
       "latestEventId": {
         "type": [
@@ -3502,7 +3507,24 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
   }
   ```
 
-**Schemas used:** [`ChatFeedEntry`](/docs/reference/schemas#chatfeedentry)
+**Server-sent events**
+
+Accept contains 'text/event-stream'. Validation, room lookup, authorization, and an unknown resume anchor answer as ordinary HTTP responses before the stream opens. Once open, the stream checks the room's newest event about once per second; when it changes, it re-checks that the caller is still a participant and sends the new canonical events in order. It closes with feed_close after about 280 seconds. Headers: Content-Type: text/event-stream; Cache-Control: no-cache; Connection: keep-alive.
+
+| Event | Data |
+| --- | --- |
+| `feed_open` | First event. Its id is the resume anchor, or on a fresh stream the feed's latestEventId (no id when the feed is empty). liveReplay states the live event buffer's retention. |
+| `<ChatFeedEventKind>` | One canonical feed event, exactly as the JSON feed returns it. The SSE event name is its eventKind (message.created, turn.snapshot.completed, participant.joined, ...) and its SSE id is its eventId. ([`ChatFeedEntry`](/docs/reference/schemas#chatfeedentry)) |
+| `turn.started` | Live, no id. A room reply has started: turnId, the answering participant (participantRef, or importedVoiceId / introductionRef with surfacedParticipantRef), sceneRef, and stream.sourceMessageId, the message it answers. stream.sequence is 1. ([`ChatFeedLiveEntry`](/docs/reference/schemas#chatfeedliveentry)) |
+| `persona.stream.delta` | Live, no id. stream.frame is the data of one ack, content, pee_event, or surface_complete event of the reply, exactly as POST /continue streams it to the caller who posted. stream.sequence orders events within the turn; deduplicate by (turnId, stream.sequence). ([`ChatFeedLiveEntry`](/docs/reference/schemas#chatfeedliveentry)) |
+| `persona.stream.completed` | Live, no id. The reply's stream ended with stream.status 'completed' or 'failed'. This is not the commit: the reply is durable once its canonical events (turn.snapshot.completed and the reply's message.created) arrive. ([`ChatFeedLiveEntry`](/docs/reference/schemas#chatfeedliveentry)) |
+| `ping` | Heartbeat every 30 seconds. |
+| `feed_close` | Sent before the server closes the stream after its maximum open duration. Its id is the stream's cursor; reconnect with it as Last-Event-ID. |
+| `error` | Terminal; the stream closes after it. forbidden: the caller is no longer a participant (httpStatus is the status a new request would get). not_found: the room's feed is gone. invalid_resume_boundary: the stream's cursor left the canonical feed; reconnect without Last-Event-ID. stream_error: any other failure. |
+
+**Resume:** Send the last id received as Last-Event-ID (or ?afterEventId=): the canonical events after it are replayed before new ones follow, and an unknown id answers 409. Without either, the stream starts at the feed's head. Only canonical events and the feed_open/feed_close markers carry ids. The live reply events are not resumable: on connect, the stream replays the buffered live events of replies still in flight (the buffer keeps them about 300 seconds, at most 1024 per session); a reply that finished while you were away is read from its canonical events.
+
+**Schemas used:** [`ChatFeedEntry`](/docs/reference/schemas#chatfeedentry), [`ChatFeedLiveEntry`](/docs/reference/schemas#chatfeedliveentry)
 
 <sub>Contract authored from `app/api/v1/chat/rooms/[chatRoomId]/feed/route.ts` (confidence: high).</sub>
 

@@ -24,7 +24,8 @@ Every API that returns a surface sends the same compact wire document, published
 | **Execute** | [`POST /api/v1/world/{worldId}/execute`](/docs/reference/world-execution#world_execute_sync) | `data.output.surface`, when `data.output.kind` is `emission_surface` |
 | **Consult** | [`POST /api/v1/world/{worldId}/consult`](/docs/reference/world-execution#world_consult_sync) | `data.output.surface` |
 | **Snapshot** | [`GET /api/v1/world/{worldId}/turns/{turnId}/surface`](/docs/reference/world-turns#world_turn_surface_get) | The response body. Fetch any completed turn. |
-| **Room stream** | `POST /api/v1/chat/rooms/{chatRoomId}/continue` with `Accept: text/event-stream` | The `surface_complete` event |
+| **Room reply stream** | [`POST /api/v1/chat/rooms/{chatRoomId}/continue`](/docs/reference/chat#chat_room_continue_post) with `Accept: text/event-stream` | `data.data.surface` of the `surface_complete` event |
+| **Room feed stream** | [`GET /api/v1/chat/rooms/{chatRoomId}/feed`](/docs/reference/chat#chat_room_feed_get) with `Accept: text/event-stream` | `stream.frame.data.data.surface` of the `persona.stream.delta` event whose `stream.frame.type` is `surface_complete` |
 | **World stream** | `GET /api/v1/world/{worldId}/stream` | The `surface_complete` event. This stream is currently switched off; see [SSE Streaming](/docs/guides/sse-streaming#the-world-stream). |
 
 A snapshot written by an older turn can be stored in the expanded form instead, where `refs` is an object holding `catalog`, `accepted`, and `anomalies` arrays. A wire document's `refs` is a map keyed by ref.
@@ -99,7 +100,7 @@ The persona's finalized prose in two parallel forms.
 | `annotated` | string | Finalized text with inline ref tags such as `[ent:starholder_main:dr_chen]` or `[set:…]`. Build navigable, linked text from this. |
 | `clean` | string | The same text with the `[ent:…]` and `[set:…]` tags removed. Ready for display, TTS, search indexing, or text analysis. |
 
-The text that streamed during generation (`text_delta` events) is provisional. `clean` is the turn's final word and replaces it.
+The text that streamed during generation (`content` events) is provisional. `annotated` and `clean` are the turn's final word and replace it.
 
 **Mentions.** Each entry in `refs` carries `spans`: the `[start, end)` character offsets of every place that ref is mentioned in `clean`. To list mentions in reading order, collect every span from every ref and sort by `start`. A mention's position in that sorted list is its mention index, the number media placements use as `spanIndex`.
 
@@ -334,11 +335,11 @@ Every other layer describes only the turn that produced the surface. `session` i
 
 ## SSE Event Lifecycle
 
-When you follow a turn on a stream, events arrive in this order. On a stream, each of these except `surface_complete` arrives as a `pee_event` whose `data.event.type` is the name shown; see [SSE Streaming](/docs/guides/sse-streaming).
+When you follow a turn on a stream, events arrive in this order. The reply text arrives as `content` events and the surface as `surface_complete`; every other event shown arrives as a `pee_event`, named by its envelope's `event.type`. On the world stream that is `data.event.type`; room frames nest one level deeper, at `data.data.event.type`. See [SSE Streaming](/docs/guides/sse-streaming).
 
 | Phase | Events | What's Happening |
 |-------|--------|------------------|
-| **Streaming** | `text_delta` (repeated) | The persona is generating prose. Append each delta to build live text. |
+| **Streaming** | `content` | The reply text, in `delta`. The current runtime sends the finished annotated text in one event. |
 | **Streaming** | `ref_accepted` (`renderState: render_provisional`) | Between generation bursts, refs the persona has touched are flushed through a side channel. |
 | **Streaming** | `ref_media_bundle` | Imagery resolved for those refs, also flushed between generation bursts. |
 | **Validation** | `ref_accepted` (`renderState: commit_validated`) | Refs that passed post-generation validation. |
@@ -347,7 +348,7 @@ When you follow a turn on a stream, events arrive in this order. On a stream, ea
 | **Post-generation** | `atmosphere_context` | The context layer: atmosphere, canonical setting, music, scene profile. |
 | **Commit** | `thoughtpacket_committed` | The ThoughtPacket has been written to the knowledge graph. Carries epistemic data. |
 | **Commit** | `contradiction_detected` | Conflicts found during reasoning (if any). |
-| **Terminal** | `surface_complete` | The full, authoritative Emission Surface in wire format, including the finalized annotated text that replaces the streamed raw text. This is the turn's final word. |
+| **Terminal** | `surface_complete` | The full, authoritative Emission Surface in wire format, including the finalized text that replaces the streamed text. This is the turn's final word. |
 
 ### Other PEE Events
 
@@ -375,7 +376,7 @@ Each streamed event previews part of the surface that `surface_complete` deliver
 
 | Event | Previews | How to accumulate |
 |-------|----------|-------------------|
-| `text_delta` | `text.clean` | Append; replace with `text.clean` at `surface_complete` |
+| `content` | `text.annotated` | Append `delta`; replace with `text` at `surface_complete` |
 | `ref_accepted` | `refs[ref]` | Upsert by ref |
 | `ref_anomaly` | `refs[ref]` with `status: "anomaly"` | Upsert by ref |
 | `ref_media_bundle` | `media.bundles[ref]` | Replace when `revision` is higher for the same `replacementKey` |
