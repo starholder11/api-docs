@@ -46,7 +46,7 @@ A switch is something you decide to do, not a step every submission takes. `work
 
 ### The `workflow` object
 
-Every submission response (the submit `201`, the submission read, and the brief, strategy, and approve responses) carries a `workflow` object. It states your lane, where review stands, the one condition the submission is waiting on, and the exact calls that are valid now:
+Every submission response carries a `workflow` object: the submit `201`, the submission read, the brief, strategy, and approve responses, the manifest read's `202` pending answer, and the fulfillment read. It states your lane, where review stands, the one condition the submission is waiting on, and the exact calls that are valid now:
 
 ```json
 {
@@ -83,6 +83,8 @@ Every submission response (the submit `201`, the submission read, and the brief,
 | `rejected` | The submission was rejected | Read `rejection`; resubmit with a new `submissionId` if allowed |
 
 `blockingReason` is `null` once the story is `registered`. While the submission waits on extraction or the platform, `nextActions` includes `poll_submission`: read the submission again in about ten seconds. An empty `nextActions` means the submission is done.
+
+Only `workflow` tells you what the submission is waiting on. A response without `workflow` is not a blocking reason and does not change the wait. That includes every error, such as `422 ERR_MANIFEST_EMPTY` from the manifest read, and the manifest itself once it exists. Keep the last `workflow` you read, or read the submission again for a fresh one. A `202` pending is a wait, not an error, and it carries `workflow`.
 
 ## Overview
 
@@ -199,7 +201,7 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_
   -H "X-Api-Key: $API_KEY"
 ```
 
-While extraction is still running the manifest read returns `202` with `{ status: "pending", submissionStatus, blockingReason, retryAfterMs }` and a `Retry-After: 10` header; wait and read again. `422 ERR_MANIFEST_EMPTY` comes only after extraction finished and found nothing to illustrate; `GET .../extraction` reports why in `_quality`.
+While extraction is still running the manifest read returns `202` with `{ status: "pending", submissionStatus, blockingReason, workflow, retryAfterMs }` and a `Retry-After: 10` header; wait and read again. `workflow` is the same object the submission read returns, and `blockingReason` repeats `workflow.blockingReason`. `422 ERR_MANIFEST_EMPTY` comes only after extraction finished and found nothing to illustrate; `GET .../extraction` reports why in `_quality`.
 
 For each item, request a staging URL. The content type must match the item's delivery spec: images are png, jpeg, or webp up to 25 MB, and videos are mp4 or webm up to 400 MB. Then `PUT` the bytes to `uploadUrl` within 15 minutes, with the same `Content-Type`:
 
@@ -268,7 +270,7 @@ curl .../submit/$SUBMISSION_ID/manifest/status    # manifest status
 curl .../submit/$SUBMISSION_ID/fulfillment        # media fulfillment status (lazy lane: pending, generating, accepted, or failed)
 ```
 
-On the lazy lane, the fulfillment read reports `pending` until extraction completes and any requested review is approved, then `generating`, then `accepted` once media is done (or `failed` if generation stalls). With `post_bounty` it reports the bounty: `pending` while open (never `claimed` before someone claims it), `claimed`, `submitted` while a set awaits your review, `accepted` once you accept, and `failed` if the bounty is cancelled or expires. It also carries the submission's `blockingReason`, so it agrees with `workflow`.
+On the lazy lane, the fulfillment read reports `pending` until extraction completes and any requested review is approved, then `generating`, then `accepted` once media is done (or `failed` if generation stalls). With `post_bounty` it reports the bounty: `pending` while open (never `claimed` before someone claims it), `claimed`, `submitted` while a set awaits your review, `accepted` once you accept, and `failed` if the bounty is cancelled or expires. It also carries the submission's `workflow`, with `blockingReason` repeated at the top level, so a poll of this read keeps your `workflow` current.
 
 ## Via MCP
 

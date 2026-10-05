@@ -10161,7 +10161,11 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
           "type": "null"
         }
       ],
-      "description": "The submission workflow's blocking reason (ECA §6.3), so this read names the same blocker."
+      "description": "Same as workflow.blockingReason, so this read names the same blocker."
+    },
+    "workflow": {
+      "$ref": "#/components/schemas/SubmissionWorkflowView",
+      "description": "The submission workflow view (ECA §6.3), as on every submission read."
     },
     "reviewStatus": {
       "type": [
@@ -10226,6 +10230,7 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
     "items",
     "submissionStatus",
     "blockingReason",
+    "workflow",
     "reviewStatus",
     "fulfillmentSubmitted",
     "marketplaceBountyId"
@@ -20892,7 +20897,12 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
         {
           "type": "null"
         }
-      ]
+      ],
+      "description": "Same as workflow.blockingReason."
+    },
+    "workflow": {
+      "$ref": "#/components/schemas/SubmissionWorkflowView",
+      "description": "The submission workflow view (ECA §6.3), as on every submission read."
     },
     "retryAfterMs": {
       "type": "number"
@@ -20903,6 +20913,7 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
     "status",
     "submissionStatus",
     "blockingReason",
+    "workflow",
     "retryAfterMs"
   ],
   "description": "ECA §6.3 — GET .../manifest while extraction is still running (HTTP 202 with Retry-After). The manifest does not exist yet; read again after retryAfterMs."
