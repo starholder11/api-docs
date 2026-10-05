@@ -9,7 +9,7 @@ description: "1 operation tagged world.textroots."
 
 `GET /api/v1/world/{worldId}/textroots/{ref}`
 
-**Get the compiled profile of a TextRoot in a world.** Resolves a TextRoot ref within the world and returns its compiled MediaXRef profile (xref identity, media summary, narrative context, linked entities and settings) inside the standard success envelope. Accepts world-scoped `txt:` refs and the `txt:textroot_<textRootId>:story` form; a world story's MediaXRef is keyed by its text asset, so the TextRoot id form resolves through TextRoot.source_asset_id. The ref path segment must be URL-encoded because it contains colons. For a story, entities and settings are the story's graph members (entities through AssetEntity, settings MENTIONED_IN the TextRoot), each with canonicalVisual.url and a ref that entity_get or setting_get reads, and media.sceneVisuals lists each scene's illustrations in narrative order; every url is a direct image URL. This is story.publish's terminal get_playback read: workflow.nextActions names it once the submission is registered. Read-only. Echoes X-Correlation-Id on every response.
+**Get the compiled profile of a TextRoot in a world.** Resolves a TextRoot ref within the world and returns its compiled MediaXRef profile (xref identity, media summary, narrative context, linked entities and settings) inside the standard success envelope. Accepts world-scoped `txt:` refs, the `txt:textroot_<textRootId>:story` form, and the TextRoot id itself (`text_root_…`, the submission read's textRootId), which names the same story; a world story's MediaXRef is keyed by its text asset, so the TextRoot id forms resolve through TextRoot.source_asset_id. A `txt:` ref must be URL-encoded because it contains colons. A TextRoot this world has no MediaXRef for is 404 ERR_NOT_FOUND. For a story, entities and settings are the story's graph members (entities through AssetEntity, settings MENTIONED_IN the TextRoot), each with canonicalVisual.url and a ref that entity_get or setting_get reads, and media.sceneVisuals lists each scene's illustrations in narrative order; every url is a direct image URL. This is story.publish's terminal get_playback read: workflow.nextActions names it once the submission is registered. Read-only. Echoes X-Correlation-Id on every response.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -22,7 +22,7 @@ description: "1 operation tagged world.textroots."
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `worldId` | path | yes | string |  |
-| `ref` | path | yes | string |  |
+| `ref` | path | yes | string | The story to open: the submission read's textRootId as given (text_root_&lt;canonId&gt;_&lt;textAssetId&gt;), txt:textroot_&lt;textRootId&gt;:story, or a world-scoped txt: ref. URL-encode a ref that contains colons. |
 | `X-Correlation-Id` | header | no | string | Optional caller correlation id; generated (corr_&lt;16 hex&gt;) when absent and echoed in the X-Correlation-Id response header and error bodies. |
 
 **Responses**

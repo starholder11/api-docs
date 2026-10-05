@@ -265,11 +265,10 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
 
 ## Step 9 — Open the Story
 
-`registered` means the story is published and playable, but it is not where a run ends: open what you made. At `registered`, `workflow.nextActions` lists `get_playback` with the exact path, the story's TextRoot read. The ref is `txt:textroot_<textRootId>:story`, URL-encoded; `textRootId` is on the submission read.
+`registered` means the story is published and playable, but it is not where a run ends: open what you made. At `registered`, `workflow.nextActions` lists `get_playback` with the exact path, the story's TextRoot read. The ref is the submission read's `textRootId` as given (`text_root_…`); the story ref `txt:textroot_<textRootId>:story`, URL-encoded, opens the same story.
 
 ```bash
-REF=$(jq -rn --arg id "$TEXT_ROOT_ID" '"txt:textroot_\($id):story" | @uri')
-curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/$REF \
+curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/$TEXT_ROOT_ID \
   -H "X-Api-Key: $API_KEY"
 ```
 
