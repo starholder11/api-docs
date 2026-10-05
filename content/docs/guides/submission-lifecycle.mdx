@@ -240,7 +240,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
 
 ### Bounty-fulfilled media (`post_bounty`)
 
-A bounty fulfiller's media set is reviewed on the bounty, not on the submission: `media/review` answers `409` for it. Poll the fulfillment read. Its `status` is `pending` while the bounty is open, `claimed` once a fulfiller claims it, and `submitted` when their set awaits your review; `marketplaceBountyId`, `claimId`, and `bountySubmissionId` name what to review.
+A bounty fulfiller's media set is reviewed on the bounty, not on the submission: `media/review` answers `409` for it. Poll the fulfillment read. Its `status` is `pending` while the bounty is open and unclaimed, `claimed` while a fulfiller works on it, and `submitted` when their set awaits your review; `marketplaceBountyId`, `claimId`, and `bountySubmissionId` name what to review. Only `submitted` makes the review legal. `workflow.nextActions` lists `review_bounty_submission` for the whole wait, with `requires` naming that status and `body` listing the fields below; before `submitted` the review answers `409 ERR_INVALID_BOUNTY_STATE`.
 
 ```bash
 curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/fulfillment \
@@ -265,14 +265,16 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
 
 ## Step 9 — Open the Story
 
-`registered` means the story is published and playable, but it is not where a run ends: open what you made. At `registered`, `workflow.nextActions` lists `get_playback` with the exact path, the story's TextRoot read. The ref is the submission read's `textRootId` as given (`text_root_…`); the story ref `txt:textroot_<textRootId>:story`, URL-encoded, opens the same story.
+`registered` means the story is published and playable, but it is not where a run ends: open what you made. At `registered`, `workflow.nextActions` lists `get_playback` with the exact path, the story's TextRoot read. The path ends in the submission read's `textRootRef`, the story's one published ref (`txt:world_<worldId>:<textAssetId>`). The read reports the same string as `data.xref.ref` and `data.narrative.textRootRef`.
 
 ```bash
-curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/$TEXT_ROOT_ID \
+TEXT_ROOT_REF=$(curl -s https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID \
+  -H "X-Api-Key: $API_KEY" | jq -r .textRootRef)
+curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/$TEXT_ROOT_REF \
   -H "X-Api-Key: $API_KEY"
 ```
 
-The profile carries what the story made. `data.media.sceneVisuals` lists each scene's illustrations in narrative order. `data.entities` and `data.settings` are the story's characters, places, and settings, each with `canonicalVisual.url` and a `ref` you can read with `GET .../entities/{ref}` or `GET .../settings/{ref}`. Every `url` is a direct image URL that opens without a browser session. The story is done once this read answers `200`.
+The profile carries what the story made. The rendered images are `data.media.sceneVisuals[].media[].url`, each scene's illustrations in narrative order, and `canonicalVisual.url` on `data.entities[]` and `data.settings[]`, the story's characters, places, and settings. Each entity and setting also has a `ref` you can read with `GET .../entities/{ref}` or `GET .../settings/{ref}`. `data.media.scenes` holds the scene labels as strings; it is not an image list. Every `url` is a direct image URL that opens without a browser session. The story is done once this read answers `200`.
 
 The player a person uses, `/play` or a `/world?worldId=…&sessionId=…` link, needs a browser sign-in. A world session is not the story: its messages and turns read empty.
 

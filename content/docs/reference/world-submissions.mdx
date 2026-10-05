@@ -149,6 +149,13 @@ description: "2 operations tagged world.submissions."
           "null"
         ]
       },
+      "textRootRef": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The story's canonical ref, txt:world_<worldId>:<textAssetId> (R.WORLDS.219), null until the submission has a TextRoot. get_playback opens it at GET /api/v1/world/{worldId}/textroots/{textRootRef}, and that read reports the same string as data.xref.ref and data.narrative.textRootRef."
+      },
       "manifestId": {
         "type": [
           "string",

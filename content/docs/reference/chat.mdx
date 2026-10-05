@@ -2164,6 +2164,16 @@ description: "30 operations tagged chat."
             "type": "string",
             "description": "The lane's reply. For rejected and approval_status it states the outcome in words, naming the proposal, its summary when known, and the resolved target world, so it agrees with resolutionState, executionBridged, receiptRefs, and failure."
           },
+          "displayOnlyFields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "responseText"
+              ]
+            },
+            "description": "rejected and approval_status only: [\"responseText\"]. Those outcomes compose responseText from their fields, so it is the reply to show a person; a client decides what happened from resolutionState, executionBridged, receiptRefs, and failure, never from the prose (CHAT §2.8)."
+          },
           "proposalId": {
             "type": "string",
             "description": "proposal, rejected, and approval_status"
@@ -5241,7 +5251,7 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
       },
       "attention": {
         "$ref": "#/components/schemas/ChatSubscriberRoomAttentionView",
-        "description": "The caller's unread and mention counts for this room (CHAT §2.5). A projection of the feed that can trail it; counts are 0 before the first projected message."
+        "description": "The caller's unread and mention counts for this room (CHAT §2.5), counted from the feed since the caller joined. latestEventId is the newest feed event the counts considered (null only in a room with no events): equal to the feed's latest event means caught up, older means the projection trails the feed."
       },
       "signals": {
         "type": "array",
@@ -5443,7 +5453,7 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
       },
       "attention": {
         "$ref": "#/components/schemas/ChatSubscriberRoomAttentionView",
-        "description": "The caller's unread and mention counts for this room (CHAT §2.5). A projection of the feed that can trail it; counts are 0 before the first projected message."
+        "description": "The caller's unread and mention counts for this room (CHAT §2.5), counted from the feed since the caller joined. latestEventId is the newest feed event the counts considered (null only in a room with no events): equal to the feed's latest event means caught up, older means the projection trails the feed."
       },
       "signals": {
         "type": "array",
@@ -5756,7 +5766,7 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
       },
       "attention": {
         "$ref": "#/components/schemas/ChatSubscriberRoomAttentionView",
-        "description": "The caller's unread and mention counts for this room (CHAT §2.5). A projection of the feed that can trail it; counts are 0 before the first projected message."
+        "description": "The caller's unread and mention counts for this room (CHAT §2.5), counted from the feed since the caller joined. latestEventId is the newest feed event the counts considered (null only in a room with no events): equal to the feed's latest event means caught up, older means the projection trails the feed."
       },
       "signals": {
         "type": "array",
@@ -5957,7 +5967,7 @@ Accept contains 'text/event-stream'. Public branch: the stream starts only after
       },
       "attention": {
         "$ref": "#/components/schemas/ChatSubscriberRoomAttentionView",
-        "description": "The caller's unread and mention counts for this room (CHAT §2.5). A projection of the feed that can trail it; counts are 0 before the first projected message."
+        "description": "The caller's unread and mention counts for this room (CHAT §2.5), counted from the feed since the caller joined. latestEventId is the newest feed event the counts considered (null only in a room with no events): equal to the feed's latest event means caught up, older means the projection trails the feed."
       },
       "signals": {
         "type": "array",
