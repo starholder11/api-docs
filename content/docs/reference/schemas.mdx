@@ -466,7 +466,8 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
       "type": "string",
       "enum": [
         "api_key",
-        "room_link"
+        "room_link",
+        "room_link_and_api_key"
       ]
     },
     "send": {
@@ -483,7 +484,7 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
     "send",
     "rule"
   ],
-  "description": "The credential every step of a workflow sends, and what it acts as."
+  "description": "The credential every step of a workflow sends, and what it acts as. `room_link_and_api_key`: a room-link private lane, where the invite token names the seat and the API key supplies its owner's authority, both on every call."
 }
 ```
 
@@ -572,6 +573,28 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
         "optional"
       ],
       "description": "Query-string fields, under the same rules as `body`."
+    },
+    "headers": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AgentWorkflowBodyField"
+          }
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AgentWorkflowBodyField"
+          }
+        }
+      },
+      "required": [
+        "required",
+        "optional"
+      ],
+      "description": "Request headers other than the workflow credential, under the same rules as `body`."
     },
     "advanceWhen": {
       "type": "array",
@@ -2186,6 +2209,28 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
         "optional"
       ],
       "description": "Query-string fields, under the same rules as `body`."
+    },
+    "headers": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AgentWorkflowBodyField"
+          }
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AgentWorkflowBodyField"
+          }
+        }
+      },
+      "required": [
+        "required",
+        "optional"
+      ],
+      "description": "Request headers other than the workflow credential, under the same rules as `body`."
     },
     "advanceWhen": {
       "type": "array",

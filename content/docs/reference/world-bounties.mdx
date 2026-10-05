@@ -1032,7 +1032,7 @@ description: "16 operations tagged world.bounties."
 
 `POST /api/v1/world/{worldId}/bounties/{bountyId}`
 
-**Reopen a bounty to open status (body action=reopen).** This POST is shared with cancel; the handler selects reopen when the JSON body has action 'reopen' and authorizes against the marketplace_bounty_reopen policy. Only the issuer or the world owner may reopen (checked before HAM admission). The state machine allows reopening from claimed, submitted, under_review, revision_requested, expired and rejected; active-claim fields are cleared. Escrow is not re-funded by this call, and the HAM turn is recorded under a per-bounty lock; repeated identical reopen requests are rejected as HAM duplicates (422).
+**Cancel an open bounty and return its escrow, or reopen a bounty (body action selects which).** One POST with two branches. The handler validates body.action before authentication, then authorizes against the policy the action names: action cancel against marketplace_bounty_cancel, action reopen against marketplace_bounty_reopen (both scope bounty:post and canAccessBounties). Only the issuer or the world owner may call either. cancel: allowed only while the bounty is open (an already-cancelled bounty is a no-op in the flow). It releases any active claim, resets a promoted source gap to marketplaceStatus none, returns the escrowed budget to the issuer (data.settlementRefs names the escrow return receipt), and answers status cancelled. reopen: allowed from claimed, submitted, under_review, revision_requested, expired, and rejected; active-claim fields are cleared and the bounty answers status open. A cancelled or registered bounty is terminal (409 ERR_BOUNTY_TERMINAL), and accepted, finalized, or already-open bounties cannot be reopened (409 ERR_INVALID_BOUNTY_TRANSITION). Reopening does not re-fund escrow: a bounty that expired with its escrow returned reopens with no escrow behind it. Each branch is a HAM turn under a per-bounty lock whose identity is the actor and bountyId, so an identical repeat is rejected as a duplicate (422) rather than replayed.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -1059,7 +1059,12 @@ description: "16 operations tagged world.bounties."
   ],
   "properties": {
     "action": {
-      "const": "reopen"
+      "type": "string",
+      "enum": [
+        "cancel",
+        "reopen"
+      ],
+      "description": "cancel returns the escrow and ends the bounty; reopen returns it to open without re-funding escrow."
     },
     "idempotencyKey": {
       "type": "string",
@@ -1072,7 +1077,7 @@ description: "16 operations tagged world.bounties."
 
 **Responses**
 
-- **200**: Bounty reopened.
+- **200**: cancel: status cancelled, with settlementRefs when an escrow return receipt was produced. reopen: status open.
 
   `application/json`
 
@@ -1109,7 +1114,18 @@ description: "16 operations tagged world.bounties."
           },
           "status": {
             "type": "string",
-            "description": "Resulting status, 'open'."
+            "enum": [
+              "cancelled",
+              "open"
+            ],
+            "description": "cancelled for action cancel, open for action reopen."
+          },
+          "settlementRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementRef"
+            },
+            "description": "Present when an escrow return receipt was produced."
           },
           "ham": {
             "type": "object",
@@ -1143,7 +1159,7 @@ description: "16 operations tagged world.bounties."
   }
   ```
 
-- **400**: ERR_VALIDATION_FAILED: action missing/invalid or body schema failure (validated before auth).
+- **400**: ERR_VALIDATION_FAILED: action missing or not cancel/reopen, or body schema failure. Validated before authentication.
 
   `application/json`
 
@@ -1202,7 +1218,7 @@ description: "16 operations tagged world.bounties."
   }
   ```
 
-- **403**: Shared denials, or ERR_FORBIDDEN: only the issuer or world owner may reopen.
+- **403**: Shared denials, or ERR_FORBIDDEN when the caller is neither the issuer nor the world owner.
 
   `application/json`
 
@@ -1246,7 +1262,7 @@ description: "16 operations tagged world.bounties."
   }
   ```
 
-- **409**: ERR_BOUNTY_TERMINAL (registered/cancelled), ERR_INVALID_BOUNTY_TRANSITION (e.g. accepted/finalized, or already open), ERR_WORLD_SCOPE_MISMATCH.
+- **409**: cancel: ERR_INVALID_BOUNTY_STATE (the bounty is not open). reopen: ERR_BOUNTY_TERMINAL (cancelled or registered) or ERR_INVALID_BOUNTY_TRANSITION (accepted, finalized, or already open). Either: ERR_WORLD_SCOPE_MISMATCH or a lifecycle persistence conflict.
 
   `application/json`
 
@@ -1280,7 +1296,7 @@ description: "16 operations tagged world.bounties."
   }
   ```
 
-- **422**: HAM admission rejected (HAM failure code or ERR_INTERNAL for duplicates), or shared mutation-preflight denial.
+- **422**: HAM admission rejected (error.code is the HAM failure code, or ERR_INTERNAL for a duplicate), or shared mutation-preflight denial.
 
   `application/json`
 
@@ -1324,7 +1340,7 @@ description: "16 operations tagged world.bounties."
   }
   ```
 
-- **500**: ERR_INTERNAL: invalid/empty JSON, HAM bootstrap/finalization failure.
+- **500**: ERR_INTERNAL: invalid or empty JSON body, HAM bootstrap or finalization failure, unexpected error.
 
   `application/json`
 
@@ -1358,7 +1374,7 @@ description: "16 operations tagged world.bounties."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`SettlementRef`](/docs/reference/schemas#settlementref)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/bounties/[bountyId]/route.ts` (confidence: medium).</sub>
 
@@ -3369,13 +3385,13 @@ description: "16 operations tagged world.bounties."
 
 `POST /api/v1/world/{worldId}/bounties/{bountyId}/settle`
 
-**Complete settlement of a finalized bounty and mark it registered.** Issuer-only (human) operation for a bounty in finalized or registered state: retries the escrow release to the claimant, applies any media top-up and downstream cascade, and moves finalized to registered. Intended as the completion/retry path after acceptance; calling it on an already registered bounty re-runs the idempotent ledger steps. Recorded as a HAM turn under a per-bounty lock.
+**Complete settlement of a finalized bounty and mark it registered.** Issuer-only operation, by session or by the issuer's API key, for a bounty in finalized or registered state: retries the escrow release to the claimant, applies any media top-up and downstream cascade, and moves finalized to registered. Intended as the completion/retry path after acceptance; calling it on an already registered bounty re-runs the idempotent ledger steps. Recorded as a HAM turn under a per-bounty lock.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `marketplace_bounty_settle`: callers `human`; scopes `bounty:submit`; capability `canAccessBounties`; mutation class `bounty_write`.
+- `marketplace_bounty_settle`: callers `external_agent`, `human`; scopes `bounty:submit`; capability `canAccessBounties`; mutation class `bounty_write`.
 
 **Parameters**
 
@@ -3491,7 +3507,7 @@ description: "16 operations tagged world.bounties."
   }
   ```
 
-- **403**: Shared denials (external agents are not allowed by policy), or ERR_FORBIDDEN (caller is not the issuer).
+- **403**: Shared denials, or ERR_FORBIDDEN (caller is not the issuer).
 
   `application/json`
 

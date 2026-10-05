@@ -284,7 +284,7 @@ description: "14 operations tagged star."
 
 `GET /api/v1/star/activity/{receiptId}`
 
-**Get one STAR receipt and its activity view.** Authenticates with SessionValidator only, not the dispatcher or authorizer. Loads the receipt by id, requires the caller to be its fromOwnerId or toOwnerId, and returns the raw LedgerReceipt together with its formatted StarActivityItem.
+**Get one STAR receipt and its activity view.** Authorizes with authorizeRouteRequest (human or external_agent; an external agent reads its owner's receipts). Loads the receipt by id, requires the caller to be its fromOwnerId or toOwnerId, and returns the raw LedgerReceipt together with its formatted StarActivityItem. Read-only.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -322,36 +322,38 @@ description: "14 operations tagged star."
   }
   ```
 
-- **401**: \{error: &lt;AuthError message&gt;\} when there is no valid session; external-agent API keys always land here.
+- **401**: Also \{error:'Could not resolve user identity'\} if the authorized identity has no userId.
 
   `application/json`
 
   ```json
   {
-    "type": "object",
-    "required": [
-      "error"
-    ],
-    "properties": {
-      "error": {
-        "type": "string"
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/AesErrorEnvelope"
+      },
+      {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "const": "unauthorized"
+          }
+        }
       }
-    }
+    ]
   }
   ```
 
-- **403**: \{error:'Forbidden'\}: the caller is not a party to the receipt.
+- **403**: Shared denials, or \{error:'Forbidden'\}: the caller is not a party to the receipt.
 
   `application/json`
 
   ```json
   {
-    "type": "object",
-    "properties": {
-      "error": {
-        "const": "Forbidden"
-      }
-    }
+    "$ref": "#/components/schemas/AesErrorEnvelope"
   }
   ```
 
@@ -388,7 +390,7 @@ description: "14 operations tagged star."
   }
   ```
 
-**Schemas used:** [`LedgerReceipt`](/docs/reference/schemas#ledgerreceipt), [`StarActivityItem`](/docs/reference/schemas#staractivityitem)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`LedgerReceipt`](/docs/reference/schemas#ledgerreceipt), [`StarActivityItem`](/docs/reference/schemas#staractivityitem)
 
 <sub>Contract authored from `app/api/v1/star/activity/[receiptId]/route.ts` (confidence: high).</sub>
 
