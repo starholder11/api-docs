@@ -159,6 +159,7 @@ This is the same event stream that powers the **hemisphere** — Starholder's br
 
 | Action | Route | What It Does |
 |--------|-------|-------------|
+| **Worlds** | `GET /world/management` | List the worlds your key can use, private ones included, with each `worldId` and whether you can read and publish there. `GET /world/discovery` searches only public worlds. |
 | **Query** | `POST /world/{worldId}/query` | Search the knowledge graph by meaning. Returns ranked candidates — use this to explore what exists before asking the persona to reason. |
 | **Execute** | `POST /world/{worldId}/execute` | Ask the persona to reason about a question. Returns an execution result carrying the Emission Surface. |
 | **Direct** | `POST /world/{worldId}/directive` | Give the persona a structured task with anchors, a mode, and bounds. |

@@ -78,7 +78,7 @@ curl https://www.starholder.xyz/api/v1/account -H "X-Api-Key: $API_KEY"
 
 `data.directory.roomDirectory` points at the room directory, the same pointer as `directories.room` above. Room operations are never in `operations`; a room link lists them (see [section 5](#5-a-room-link)).
 
-`data.worldCount` is the number of worlds your account owns, archived ones included and deleted ones excluded. It is not the list of worlds your key can use: worlds shared with you and public worlds are not counted. Use `GET /api/v1/world/discovery` to find worlds.
+`data.worldCount` is the number of worlds your account owns, archived ones included and deleted ones excluded. It is not the list of worlds your key can use: worlds shared with you and public worlds are not counted. List the worlds your key can use with `GET /api/v1/world/management`: one row per world your account owns, is a member of, is invited to, or has bookmarked, private worlds included, with `canRead` and `canPublish`. `GET /api/v1/world/discovery` searches only public worlds (free text goes in `query`) and never returns a private world, even yours.
 
 An operation that is not listed is denied to this key no matter which world you target. Key management (`/api/v1/account/api-keys/*`) is never listed for a key: only the signed-in owner manages keys. The response is `Cache-Control: no-store`, so a revoked or narrowed key never sees a cached grant.
 

@@ -9,13 +9,13 @@ description: "1 operation tagged world.management."
 
 `GET /api/v1/world/management`
 
-**List all worlds related to the caller with management metadata.** Returns a management row for every world the caller owns, is an active member of, has a pending invite to, or has bookmarked, including the caller's strongest relationship, read/publish capability, visibility, lifecycle state, and default/bootstrap flags. Rows are sorted with the default world first, then owner, member, invited, bookmarked. Read-only.
+**List all worlds related to the caller with management metadata.** Returns a management row for every world the caller owns, is an active member of, has a pending invite to, or has bookmarked, including the caller's strongest relationship, read/publish capability, visibility, lifecycle state, and default/bootstrap flags. Rows are sorted with the default world first, then owner, member, invited, bookmarked. An API key gets its owning user's rows: canRead and canPublish are the owner's standing in each world, and the key's own capabilities and risk-tier ceiling still apply on each world route. This is where a private world is listed; discovery never returns one. Read-only.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_management_get`: callers `human`; mutation class `none`.
+- `world_management_get`: callers `human`, `external_agent`; mutation class `none`.
 
 **Responses**
 

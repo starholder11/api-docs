@@ -9,7 +9,7 @@ description: "1 operation tagged world.discovery."
 
 `GET /api/v1/world/discovery`
 
-**Search the public world directory.** Searches the public world directory projection (active, public worlds only) by free text with optional owner, tag and publish-mode filters. Each result carries per-caller relationship flags (isBookmarked, isMember, hasPendingInvite) computed at query time for the caller's owning user. Read-only; private worlds are never returned.
+**Search the public world directory.** Searches the public world directory projection (active, public worlds only) by free text with optional owner, tag and publish-mode filters. Each result carries per-caller relationship flags (isBookmarked, isMember, hasPendingInvite) computed at query time for the caller's owning user. Free text is the query parameter. Read-only; private worlds are never returned, even to their owner: GET /api/v1/world/management (world_management_get) lists the caller's own worlds, private ones included.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 

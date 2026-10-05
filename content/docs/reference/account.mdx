@@ -64,7 +64,7 @@ description: "7 operations tagged account."
           },
           "worldCount": {
             "type": "integer",
-            "description": "Worlds the owning user owns in the HAM world registry, in any lifecycle state but deleted. Not the worlds this credential can read or write: list those with GET /api/v1/world/discovery."
+            "description": "Worlds the owning user owns in the HAM world registry, in any lifecycle state but deleted. Not the worlds this credential can read or write: list those with GET /api/v1/world/management, which includes private worlds."
           },
           "credential": {
             "$ref": "#/components/schemas/CallerCredentialView"
