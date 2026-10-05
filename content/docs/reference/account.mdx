@@ -9,9 +9,9 @@ description: "7 operations tagged account."
 
 `GET /api/v1/account`
 
-**Get the caller's account profile, credential view, and directory.** Resolves the caller through AuthBoundaryDispatcher (session headers, Bearer/x-api-key API key, or persona token), then authorizes against the account_get registry policy. Returns the owner userId, tenantId, the number of worlds the owner can access, a CallerCredentialView of the presented credential, and a CallerDirectory listing /api/v1 operations that pass credential-level gates for this caller, plus the published workflows (story.publish) with each step marked callable for this credential. activeKeyCount is present only for human sessions. Read-only.
+**Get the caller's account profile, credential view, and directory.** Resolves the caller through AuthBoundaryDispatcher (session headers, Bearer/x-api-key API key, or persona token), then authorizes against the account_get registry policy. Returns the owner userId, tenantId, worldCount (worlds the owning user owns in the HAM world registry, deleted worlds excluded; not the worlds this credential can read), a CallerCredentialView of the presented credential, and a CallerDirectory listing /api/v1 operations that pass credential-level gates for this caller, plus the published workflows (story.publish, chat.inbox) with each step marked callable for this credential, and roomDirectory: the room-link directory that lists the room operations, which authorize room participants and are not listed here. activeKeyCount is present only for human sessions. Read-only.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -63,7 +63,8 @@ description: "7 operations tagged account."
             "description": "Only present for human sessions."
           },
           "worldCount": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Worlds the owning user owns in the HAM world registry, in any lifecycle state but deleted. Not the worlds this credential can read or write: list those with GET /api/v1/world/discovery."
           },
           "credential": {
             "$ref": "#/components/schemas/CallerCredentialView"
@@ -143,7 +144,7 @@ description: "7 operations tagged account."
 
 **List the signed-in user's API keys.** Authenticates with SessionValidator only, using the middleware-injected x-user-* headers. Lists every API key record the user owns, in any status, sorted by updatedAtMs descending. keyHash is stripped. There is no pagination. The handler never returns an error: an authentication failure or a storage failure both produce 200 with an empty keys array.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -207,7 +208,7 @@ description: "7 operations tagged account."
 
 **Create an external-agent API key for the signed-in user.** Human session only (SessionValidator). Mints an external_agent API key: keyId key_&lt;16 hex&gt;, actorId agent:&lt;keyId&gt;, status active. Its quotaProfile is copied from the human session. The secret is returned exactly once and stored as a hash. Requested scopes must be a subset of the standard delegable scope list, and requested capabilities must be a subset of the delegable capability set. Every call creates a new key; there is no idempotency.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -419,7 +420,7 @@ description: "7 operations tagged account."
 
 **Get one of the signed-in user's API keys.** Human session only (SessionValidator). Loads the key record from the owner-scoped store path and returns it without keyHash. A key belonging to another user produces 404, because the lookup path is scoped to the caller.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -503,7 +504,7 @@ description: "7 operations tagged account."
 
 **Get the audit trail for one of the user's API keys.** Human session only (SessionValidator). Returns the persisted auth audit events for the caller's key, sorted by occurredAt ascending. If no events have been persisted, it synthesizes legacy events from the key record (created, plus revoked when applicable).
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -598,7 +599,7 @@ description: "7 operations tagged account."
 
 **Revoke an API key.** Human session only (SessionValidator). Sets the caller's key to status revoked and invalidates its cache. Revoking an already-revoked key returns the same 200 response, so the call is idempotent. The request body is not read.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -684,7 +685,7 @@ description: "7 operations tagged account."
 
 **Rotate an API key's secret.** Human session only (SessionValidator). Issues a new secret for an active key the caller owns. The old hash index is deleted and the Redis cache invalidated immediately, so the previous secret stops working at once with no grace period. Each call issues a fresh secret; there is no idempotency. The request body is not read.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

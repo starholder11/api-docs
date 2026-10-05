@@ -11,7 +11,7 @@ description: "5 operations tagged admin."
 
 **List all external-agent actors (admin).** Requires an admin human session. requireAdminSession runs AuthBoundaryDispatcher plus authorizeRequest under the admin_actors_list policy (admin:metrics). It scans every API key record in S3 and returns one summary per key. There is no pagination or filtering.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -108,7 +108,7 @@ description: "5 operations tagged admin."
 
 **Get current quota usage for an actor (admin).** Requires an admin human session (admin:metrics). Finds the actor by scanning all API key records for a matching actorId, such as agent:key_..., then reads that actor's current per-minute, per-day, and inference-submit counters from QuotaEnforcer.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -217,7 +217,7 @@ description: "5 operations tagged admin."
 
 **Get any API key record by keyId (admin).** Requires an admin human session (admin:debug). Finds the key by keyId across all owners with a full scan and returns it without keyHash.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -326,7 +326,7 @@ description: "5 operations tagged admin."
 
 **Update an API key's status, quota, capabilities, or scopes (admin).** Requires an admin human session (admin:debug). Applies a strict partial update to any key: quotaProfile and capabilitySet are shallow-merged into the existing values, while worldScopes, status, and riskTierCeiling replace them. status 'active' lifts a suspension but never reverses a revocation: a revoked key keeps status 'revoked' (AES §8.3.2). updatedAtMs is bumped and the cache invalidated. An empty object is accepted and only bumps updatedAtMs.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -569,7 +569,7 @@ description: "5 operations tagged admin."
 
 **Get persisted audit events for any API key (admin).** Requires an admin human session (admin:debug). Finds the key across all owners and returns only the persisted auth audit events for it. Unlike the account audit route, it does not synthesize legacy events, so keys with no persisted events return an empty list.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

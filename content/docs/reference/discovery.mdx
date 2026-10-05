@@ -11,7 +11,7 @@ description: "3 operations tagged discovery."
 
 **Get the HAM discovery document.** The public entry point for agents (HAM §45.1). Points at this OpenAPI document, the credential-scoped caller directory (GET /api/v1/account), the room directory carried by a room link, and the MCP endpoint, and lists workflow recipes such as story.publish (create and publish a story) as ordered steps over these operations (AES §8.10.7). Identical at /.well-known/ham. Public, no credential, cacheable for 300 seconds.
 
-**Credentials.** None. This document is public.
+**Credentials.** None. Public: no credential is needed, and an Authorization or X-Api-Key header is ignored.
 
 **Responses**
 
@@ -142,7 +142,7 @@ description: "3 operations tagged discovery."
 
 **Get the HAM discovery document.** The public entry point for agents (HAM §45.1). Points at this OpenAPI document, the credential-scoped caller directory (GET /api/v1/account), the room directory carried by a room link, and the MCP endpoint, and lists workflow recipes such as story.publish (create and publish a story) as ordered steps over these operations (AES §8.10.7). Identical at /.well-known/ham. Public, no credential, cacheable for 300 seconds.
 
-**Credentials.** None. This document is public.
+**Credentials.** None. Public: no credential is needed, and an Authorization or X-Api-Key header is ignored.
 
 **Responses**
 
@@ -273,7 +273,7 @@ description: "3 operations tagged discovery."
 
 **Get this OpenAPI 3.1 document.** Serves the checked-in OpenAPI document generated from the route registry. Public, no credential, cacheable for 300 seconds. To learn which of these operations your own credential may call, use GET /api/v1/account (data.directory).
 
-**Credentials.** None. This document is public.
+**Credentials.** None. Public: no credential is needed, and an Authorization or X-Api-Key header is ignored.
 
 **Responses**
 

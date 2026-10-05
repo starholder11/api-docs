@@ -11,7 +11,7 @@ description: "1 operation tagged jobs."
 
 **Poll an async execution job.** Resolves the caller with AuthBoundaryDispatcher; personas are rejected. Loads the job from Redis and returns it only when record.actorId equals the caller or the job's ownerUserId equals the caller's owner, so sibling API keys of the same owner, and the owner's session, can read each other's jobs. queued, running, or expired jobs return an AsyncJobEnvelope; completed or failed jobs return an AsyncJobResult containing the ExecutionResult or the error. Polling only.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

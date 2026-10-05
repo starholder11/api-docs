@@ -11,7 +11,7 @@ description: "1 operation tagged world.turns."
 
 **Get the persisted emission surface for a world turn.** Returns the stored EmissionSurface snapshot for a turn in the world-owner's world scope. With layers, returns a projection containing identity plus the requested layers (unknown layer names are ignored); with include=proof, also attaches the durable world proof (null if none). surfaceRef selects a specific stored surface, but only if it is registered as a surface.snapshot.bundle artifact for this world and turn.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

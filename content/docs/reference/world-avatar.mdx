@@ -11,7 +11,7 @@ description: "1 operation tagged world.avatar."
 
 **Upload a world avatar image and set it in the world config.** Owner-only multipart upload. The image (PNG, JPEG or WebP, at most 4 MiB) is uploaded to world-owned storage, then publicDirectory.avatarUrl is replaced through the canonical config mutation service using baseConfigHash (or the current hash when omitted). Returns the new URL, the new config hash and the refreshed settings surface. Every call uploads a new object; the upload happens before the config write, so a config conflict leaves an unused uploaded file.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

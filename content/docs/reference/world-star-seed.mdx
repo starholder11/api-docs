@@ -11,7 +11,7 @@ description: "2 operations tagged world.star-seed."
 
 **Stake STAR on a world gap coordinate (topology seed hold).** Escrows STAR from the caller's wallet against a GapCoordinate in this world whose status is candidate or open, and annotates the gap with the stake (best effort). The seed id is derived from world and gap (gap_&lt;world&gt;__&lt;gap&gt;), and the default ledger idempotency key is per gap, not per user, so a gap effectively holds one stake. Admitted as a HAM turn; amount defaults to the deployment's default stake (100 STAR unless configured).
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -457,7 +457,7 @@ description: "2 operations tagged world.star-seed."
 
 **Return a STAR stake previously held on a world gap.** Returns escrowed STAR from a gap topology seed to the caller, who must be the recorded seeder for that gap, and clears the gap's stake annotation (best effort). amount defaults to the recorded stake amount; a caller-supplied amount overrides it and is passed to the ledger as-is. Admitted as a HAM turn; ledger idempotency defaults to a per-seed key, so the return for a given gap seed is effectively one-shot.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

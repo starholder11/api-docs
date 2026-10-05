@@ -11,7 +11,7 @@ description: "15 operations tagged world.submit."
 
 **Get a submission's lifecycle status.** Returns the public view of a narrative submission in the world: lifecycle status, fulfillment and deferred strategy, linked TextAsset/TextRoot/manifest/bounty ids, rejection details, extraction readiness (with the extraction URL), and status history, plus manifestReady and manifestItemCount from the persisted submission manifest or the linked marketplace bounty manifest. Internal fields (narrativeText, ownerUserId, retryCount, correctionHistory) are omitted. Returns 404 if the submission belongs to a different world. workflow carries the next valid calls and the one blockingReason. Read-only; intended for polling.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -326,7 +326,7 @@ description: "15 operations tagged world.submit."
 
 **Finalize an attended (self_fulfill or post_bounty) submission.** Finalizes a self_fulfill or post_bounty submission whose media has been accepted (status media_fulfilled): settles topology-seed escrow, hands the accepted media to the pipeline and marks media generation complete, then seals the submission as finalized. Takes no request body. Idempotent: an already finalized/registered submission returns 200 with alreadyFinalized=true. Not allowed for platform_default submissions, which the platform finalizes itself. A post_bounty submission whose bounty media the issuer accepts on the bounty review route never reaches media_fulfilled and never needs this call: the platform finalizes and registers it.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -512,7 +512,7 @@ description: "15 operations tagged world.submit."
 
 **Submit corrections to a submission's extraction.** Records one or more extraction corrections, sets the submission status to correction_requested, appends to its correction history, persists a correction record, and emits an audit event. Re-extraction is queued only if the submission was in awaiting_extraction_review or extraction_complete before the call; otherwise the correction is recorded without re-extraction (see `guidance`). Not idempotent: every call creates a new correctionId and status-history entry. Rejected when the submission is sealed.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -703,9 +703,9 @@ description: "15 operations tagged world.submit."
 
 `GET /api/v1/world/{worldId}/submit/{submissionId}/extraction`
 
-**Get the extraction bundle for a submission.** Returns the extraction bundle built from the submission's TextRoot: narrative-guide chapters (with nested scenes), a flat scene list, de-duplicated entities, entity and scene relationships, and setting instances, plus a `_quality` assessment (viable when at least one entity or setting exists). Read-only but performs several graph and storage reads. Returns 409 only when the submission has no TextRoot yet; once a TextRoot exists the bundle is returned even if extraction is still running, so check `_quality` or the submission's extractionReady flag.
+**Get the extraction bundle for a submission.** Returns the extraction bundle built from the submission's TextRoot: narrative-guide chapters (with nested scenes), a flat scene list, de-duplicated entities, entity and scene relationships, and setting instances, plus a `_quality` assessment (viable when at least one entity or setting exists). Read-only but performs several graph and storage reads. Carries workflow, the submission workflow view, as every submission read does. Before a TextRoot exists, while extraction is still running (workflow.waitingOn extraction), returns 202 with status pending, workflow, its blockingReason repeated at the top level, and Retry-After, the same wait the manifest read answers; poll again. Once a TextRoot exists the bundle is returned even if extraction is still running: workflow.waitingOn extraction means the bundle is partial. 409 ERR_EXTRACTION_NOT_READY means the submission has no TextRoot and is not extracting; an error envelope carries no workflow and is not a blocking reason.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -721,7 +721,7 @@ description: "15 operations tagged world.submit."
 
 **Responses**
 
-- **200**: Extraction bundle plus quality assessment (not enveloped).
+- **200**: Extraction bundle, quality assessment, and the submission workflow view (not enveloped).
 
   `application/json`
 
@@ -737,7 +737,8 @@ description: "15 operations tagged world.submit."
       "entities",
       "relationships",
       "settings",
-      "_quality"
+      "_quality",
+      "workflow"
     ],
     "properties": {
       "submissionId": {
@@ -781,8 +782,21 @@ description: "15 operations tagged world.submit."
       },
       "_quality": {
         "$ref": "#/components/schemas/ExtractionQualityAssessment"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/SubmissionWorkflowView"
       }
     }
+  }
+  ```
+
+- **202**: Extraction still running and no TextRoot exists yet. Not an error: read again after retryAfterMs. workflow is the submission workflow view; blockingReason equals workflow.blockingReason. Response headers: Retry-After (seconds), X-Correlation-Id.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/PendingSubmissionReadResponse"
   }
   ```
 
@@ -831,7 +845,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-- **409**: Submission has no textRootId yet. Error codes: `ERR_EXTRACTION_NOT_READY`.
+- **409**: Submission has no textRootId and is not extracting. Error codes: `ERR_EXTRACTION_NOT_READY`.
 
   `application/json`
 
@@ -861,7 +875,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`ExtractionQualityAssessment`](/docs/reference/schemas#extractionqualityassessment), [`NarrativeGuideChapter`](/docs/reference/schemas#narrativeguidechapter), [`NarrativeGuideEntity`](/docs/reference/schemas#narrativeguideentity), [`NarrativeGuideScene`](/docs/reference/schemas#narrativeguidescene), [`SubmissionExtractionRelationship`](/docs/reference/schemas#submissionextractionrelationship)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`ExtractionQualityAssessment`](/docs/reference/schemas#extractionqualityassessment), [`NarrativeGuideChapter`](/docs/reference/schemas#narrativeguidechapter), [`NarrativeGuideEntity`](/docs/reference/schemas#narrativeguideentity), [`NarrativeGuideScene`](/docs/reference/schemas#narrativeguidescene), [`PendingSubmissionReadResponse`](/docs/reference/schemas#pendingsubmissionreadresponse), [`SubmissionExtractionRelationship`](/docs/reference/schemas#submissionextractionrelationship), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/[submissionId]/extraction/route.ts` (confidence: high).</sub>
 
@@ -869,9 +883,9 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/{submissionId}/extraction/approve`
 
-**Approve a submission's extraction and release it to manifest build.** Approves an extraction that is waiting for review (status awaiting_extraction_review or correction_requested): applies any deferred work-strategy request captured at submit time, transitions the submission to extraction_complete, queues the backlot media-generation resume stage, clears the pipeline hold, and emits an audit event. Rejects empty extractions (no entities and no settings). A requested post_bounty that cannot be posted does not fail the approval: when its budget fails the budget rule or the marketplace refuses the post (for example ERR_INSUFFICIENT_FUNDS), the code is recorded in requestedWorkLastError, the strategy stays unselected, and the 200 workflow blocks on strategy_required naming it. A retryable failure is a 500 and nothing is approved. Takes no request body. Not idempotent: a second call returns 409 because the status is no longer approvable.
+**Approve a submission's extraction and release it to manifest build.** Approves an extraction that is waiting for review (status awaiting_extraction_review or correction_requested): applies any deferred work-strategy request captured at submit time, transitions the submission to extraction_complete and stamps extractionReviewApprovedAt, queues the backlot media-generation resume stage, clears the pipeline hold, and emits an audit event. Rejects empty extractions (no entities and no settings). A requested post_bounty that cannot be posted does not fail the approval: when its budget fails the budget rule or the marketplace refuses the post (for example ERR_INSUFFICIENT_FUNDS), the code is recorded in requestedWorkLastError, the strategy stays unselected, and the 200 workflow blocks on strategy_required naming it. A retryable failure is a 500 and nothing is approved. Review happens once per extraction: a later strategy selection continues from extraction_complete without returning to review; a correction starts a new extraction that is reviewed again. Takes no request body. Not idempotent: a second call returns 409 because the status is no longer approvable.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1168,7 +1182,7 @@ description: "15 operations tagged world.submit."
 
 **Get media fulfillment status for a submission.** Returns the fulfillment status surface for a submission: strategy, an aggregate status (pending, claimed, submitted, accepted, rejected, generating, failed), per-manifest-item rows with requirement, delivery spec, media URL and rejection reason, the review status, and the import result once media has been accepted. For platform_default the status is pending until extraction completes (and any requested review is approved), generating during media production, accepted once media is done, and failed when generation stalls or the submission is rejected. For post_bounty the state comes from the linked marketplace bounty (marketplaceBountyId): pending while it is open or not yet posted, claimed once a fulfiller claims it (and again after a revision request), submitted while their media set awaits the issuer's review, accepted once the issuer accepts it, and failed if the bounty is cancelled or expires. While submitted, claimId and bountySubmissionId name the set to review on POST /api/v1/world/\{worldId\}/bounties/\{bountyId\}/review; after acceptance fulfilledByUserId names the fulfiller. workflow is the submission workflow view, as on every submission read, and blockingReason repeats workflow.blockingReason so this read names the same blocker. Derived from the submission manifest (or the bounty-linked work manifest), the fulfillment record or linked bounty, and the submission status. Read-only.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1269,7 +1283,7 @@ description: "15 operations tagged world.submit."
 
 **Get (or materialize) the media work manifest for a submission.** Returns the submission's media work manifest with internal graph-write placement details stripped (placement reduced to slotType, targetNodeLabel, targetNodeId). Prefers the persisted submission manifest, then the linked marketplace bounty manifest. If neither exists, this GET materializes a manifest from the extraction bundle and persists it as a side effect, so the first successful call may be slow and later calls return the stored copy. While extraction is still running (workflow.waitingOn extraction) and no manifest exists, returns 202 with status pending, the submission workflow view (workflow), its blockingReason repeated at the top level, and Retry-After; poll again. After extraction, 422 ERR_MANIFEST_EMPTY means the extraction produced nothing that needs media (not persisted). An error envelope carries no workflow and is not a blocking reason: GET the submission for the current workflow.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1301,7 +1315,7 @@ description: "15 operations tagged world.submit."
 
   ```json
   {
-    "$ref": "#/components/schemas/PendingWorkManifestResponse"
+    "$ref": "#/components/schemas/PendingSubmissionReadResponse"
   }
   ```
 
@@ -1390,7 +1404,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`PendingWorkManifestResponse`](/docs/reference/schemas#pendingworkmanifestresponse), [`PublicWorkManifest`](/docs/reference/schemas#publicworkmanifest)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`PendingSubmissionReadResponse`](/docs/reference/schemas#pendingsubmissionreadresponse), [`PublicWorkManifest`](/docs/reference/schemas#publicworkmanifest)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/[submissionId]/manifest/route.ts` (confidence: high).</sub>
 
@@ -1400,7 +1414,7 @@ description: "15 operations tagged world.submit."
 
 **Set the creative brief for a submission's media work.** Replaces the submission's creative brief with the trimmed `statement` and emits an audit event. Allowed only before a fulfillment strategy is set (the brief locks once a strategy is chosen) and while the submission is not sealed. Idempotent in effect: repeating the same statement overwrites with the same value. A brief is required before choosing the post_bounty strategy.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1662,7 +1676,7 @@ description: "15 operations tagged world.submit."
 
 **Get manifest readiness and fulfillment review status.** Lightweight polling endpoint reporting whether a work manifest exists for the submission (persisted or linked via the marketplace bounty), its id and item count, the fulfillment strategy, whether a media fulfillment has been submitted, and its review status. For post_bounty both come from the linked marketplace bounty, as on the fulfillment read: fulfillmentSubmitted is true once a fulfiller's media set awaits review or was accepted. Read-only; unlike GET .../manifest it never materializes a manifest.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1824,9 +1838,9 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/{submissionId}/manifest/strategy`
 
-**Choose how a submission's media work will be fulfilled.** Sets the submission's fulfillment strategy: self_fulfill (caller supplies media), post_bounty (creates a marketplace media_production bounty funded from the submission owner's STAR wallet into escrow), or platform_default (platform generates media). Once set, the strategy cannot change; re-posting the same strategy is allowed and is the documented way to retry a failed pipeline start or bounty creation. Side effects may include publishing the text asset and starting the backlot pipeline, patching the running pipeline's metadata, re-triggering auto-progression, creating and persisting the bounty and its work manifest, and funding escrow. Returns 207 (with pipelineWarning) when the strategy was saved but the pipeline failed to start.
+**Choose how a submission's media work will be fulfilled.** Sets the submission's fulfillment strategy: self_fulfill (caller supplies media), post_bounty (creates a marketplace media_production bounty funded from the submission owner's STAR wallet into escrow), or platform_default (platform generates media). Once set, the strategy cannot change; re-posting the same strategy is allowed and is the documented way to retry a failed pipeline start or bounty creation. Side effects may include publishing the text asset and starting the backlot pipeline, patching the running pipeline's metadata, re-triggering auto-progression, creating and persisting the bounty and its work manifest, and funding escrow. After an approved extraction (including recovery from a requested post_bounty that approval could not post), the submission continues from extraction_complete: a posted bounty moves it to manifest_issued, and it does not return to awaiting_extraction_review. Returns 207 (with pipelineWarning) when the strategy was saved but the pipeline failed to start.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -2013,6 +2027,7 @@ description: "15 operations tagged world.submit."
     "required": [
       "submissionId",
       "fulfillmentStrategy",
+      "workflow",
       "pipelineWarning"
     ],
     "properties": {
@@ -2024,6 +2039,10 @@ description: "15 operations tagged world.submit."
           "string",
           "null"
         ]
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       },
       "pipelineWarning": {
         "type": "object",
@@ -2157,7 +2176,7 @@ description: "15 operations tagged world.submit."
 
 **Submit a media set fulfilling a submission's work manifest.** Records a media fulfillment (one URL per manifest item) for a submission, pending review via POST .../media/review. When a persisted manifest exists, every submitted itemId must exist in it, every mediaUrl must be http(s), and all entity- and setting-tier manifest items must be covered. Idempotent on `contentHash`: re-posting the same contentHash returns the stored record with 200; a different contentHash is rejected with 409 unless the prior fulfillment was rejected (then it is replaced). Every call counts against the caller's daily media-fulfillment quota, including replays.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -2429,7 +2448,7 @@ description: "15 operations tagged world.submit."
 
 **Accept or reject a submitted media fulfillment.** Records the submission owner's review decision on the pending media fulfillment. Accepting imports each media item into the world (media assets plus graph links), syncs post_bounty STAR escrow, and, when every item imports successfully under self_fulfill/post_bounty, transitions the submission to media_fulfilled and queues the pipeline to resume. Rejecting syncs escrow and reopens the manifest (status manifest_issued) so a revised media set can be submitted. Repeating the same decision is a replay that returns the stored record (and re-runs escrow sync); a conflicting decision returns 409. A media set a bounty fulfiller submits through the marketplace is reviewed on POST /api/v1/world/\{worldId\}/bounties/\{bountyId\}/review instead; this route answers 409 for it because no submission fulfillment record exists.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -2659,7 +2678,7 @@ description: "15 operations tagged world.submit."
 
 **Get a presigned upload URL for one manifest item's media file.** Issues a presigned S3 PUT URL (valid 900 seconds) for staging a media file for one item of the submission's persisted work manifest. The content type must match the item's delivery spec (image: png/jpeg/webp up to 25 MB; video: mp4/webm up to 400 MB) and the filename extension must match the content type. Upload the bytes with an HTTP PUT to uploadUrl using the same Content-Type, then pass the returned mediaUrl in POST .../media. No server-side record is created; reusing stagingSessionId groups uploads under one staging prefix.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -2874,9 +2893,9 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/narrative`
 
-**Create and publish a story: submit a narrative and start its production pipeline.** Creates and publishes a story in one call: validates the narrative, publishes it as a TextAsset in the path world, and starts its production pipeline. There is no separate create or publish operation. Required: submissionId (client-chosen idempotency key), title (3 to 500 characters), narrativeText (50 to 50,000 whitespace-separated words after trimming; 49 is rejected), contentHash (lowercase hex SHA-256 of the UTF-8 trimmed narrativeText), and originSystem. requestedWorkStrategy (platform_default | self_fulfill | post_bounty) decides how media is produced; sending it is the decision, and the response workflow does not ask for a strategy again. self_fulfill and post_bounty pause at awaiting_extraction_review unless skipExtractionReview is true. With post_bounty, requestedBountyBudgetStar must be at least 100 $STAR, the media-production bounty floor; a lower budget is rejected here (422 ERR_BUDGET_BELOW_FLOOR). The 201 workflow lists the next calls and the one blockingReason; the story.publish workflow on /.well-known/ham orders every step. Validates a narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset in the path world and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed as a revision). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Poll GET .../submit/\{submissionId\} for lifecycle progress.
+**Create and publish a story: submit a narrative and start its production pipeline.** Creates and publishes a story in one call: validates the narrative, publishes it as a TextAsset in the path world, and starts its production pipeline. There is no separate create or publish operation. Required: submissionId (client-chosen idempotency key), title (3 to 500 characters), narrativeText (50 to 50,000 whitespace-separated words after trimming; 49 is rejected), contentHash (lowercase hex SHA-256 of the UTF-8 trimmed narrativeText), and originSystem. requestedWorkStrategy (platform_default | self_fulfill | post_bounty) decides how media is produced; sending it is the decision, and the response workflow does not ask for a strategy again. self_fulfill and post_bounty pause at awaiting_extraction_review unless skipExtractionReview is true. With post_bounty, requestedBountyBudgetStar must be at least 100 $STAR, the media-production bounty floor; a lower budget is rejected here (422 ERR_BUDGET_BELOW_FLOOR). A 422 names every failed field: all field checks (submissionId, title, word count, contentHash, originSystem) run, and request-option failures (requestedWorkStrategy, the review flags, the post_bounty budget) are returned with them and store nothing, so the same submissionId can carry the corrected body. The 201 workflow lists the next calls and the one blockingReason; the story.publish workflow on /.well-known/ham orders every step. Validates a narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset in the path world and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed as a revision). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Poll GET .../submit/\{submissionId\} for lifecycle progress.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -3117,7 +3136,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-- **422**: Submission rejected by validation or governance (also on idempotent replay of a rejected submissionId). Body is NOT the error envelope. Error codes: `MISSING_FIELD`, `submission_quality_floor`, `PROVENANCE_MISMATCH`, `duplicate_submission`, `submission_policy_violation`, `ERR_VALIDATION_FAILED`, `ERR_BUDGET_BELOW_FLOOR`.
+- **422**: Submission rejected by validation or governance (also on idempotent replay of a rejected submissionId). rejection.reasons has one entry per failed field check and request option. Body is NOT the error envelope. Error codes: `MISSING_FIELD`, `submission_quality_floor`, `PROVENANCE_MISMATCH`, `duplicate_submission`, `submission_policy_violation`, `ERR_VALIDATION_FAILED`, `ERR_BUDGET_BELOW_FLOOR`.
 
   `application/json`
 
@@ -3215,7 +3234,7 @@ description: "15 operations tagged world.submit."
 
 **Deprecated: create and publish a story in body.worldId or the bootstrap world (use narrative_submit).** Deprecated. Use POST /api/v1/world/\{worldId\}/submit/narrative (narrative_submit), which names the world in the path. This alias takes the world from body.worldId and silently targets the bootstrap world (BOOTSTRAP_WORLD_ID in the route file) when it is omitted. Validates the narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Like the path-scoped route, it honors skipExtractionReview and requestExtractionReview.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

@@ -11,7 +11,7 @@ description: "8 operations tagged world.execution."
 
 **Run a synchronous world consult turn (external agent).** External agents only: world:read, canQuery, risk tier T0, and the externalAgentReadEnabled flag. x-origin-system is required. The order of checks is: body idempotency key and replay check, quota (429), then runWorldConsultTurn, a HAM 'world.consult.broadcast' turn. Returns an ExecutionResult whose output is an emission surface, optionally projected by ?layers.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -232,7 +232,7 @@ description: "8 operations tagged world.execution."
 
 **Run a bounded persona directive (inference turn) in a world.** Validates a persona directive, checks that every anchor ref exists in the graph, acquires the world's directive lock, and synchronously runs an inference turn through the HAM execute seam on the world-global turn flow, returning a DirectiveReceipt in the success envelope. The request blocks until the turn finishes; bounds.timeoutMs and bounds.maxTokens are checked only between turns, and in the current implementation exactly one turn runs regardless of bounds.maxTurns. Any client-supplied provenance is replaced by the authenticated identity. directiveId is used as the HAM session id; a duplicate envelope that already completed returns the cached result, while one still in flight fails with a retryable 500.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session; platform persona token.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session; platform persona token. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session or a platform persona token. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -470,7 +470,7 @@ description: "8 operations tagged world.execution."
 
 **Run a synchronous world chat turn as an external agent or persona.** Authorizes with authorizeRouteRequest. External agents need world:write and inference:propose, canExecuteFlows, risk tier T1 or higher, and the world's externalAgentAccessEnabled flag; personas use x-actor-kind: persona with a persona Bearer token. The order of checks is: request body idempotency key and replay check, quota (429), a HAM 'world.execute.chat' admission, then runExecuteTurn, which reserves STAR settlement and runs the turn pinned to flow:world-global-turn@1.0. The result is cached under the idempotency key. Returns an ExecutionResult whose output is the turn's emission surface, optionally projected to selected layers.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; platform persona token.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; platform persona token. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a platform persona token. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -703,7 +703,7 @@ description: "8 operations tagged world.execution."
 
 **Enqueue an asynchronous world chat turn and get a pollable job.** Uses the same authorization and body as /execute, plus an optional webhookUrl, but returns 202 with an AsyncJobEnvelope. The order of checks is: quota first (429), then the idempotency replay check, webhook validation, and HAM admission. A job record is then written to Redis (24 h TTL), and a best-effort internal POST to /api/v1/jobs/\{jobId\}/run starts it. Poll GET /api/v1/jobs/\{jobId\} (pollUrl) for the result. Replays with the same key and payload return the cached 202 envelope.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; platform persona token.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; platform persona token. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a platform persona token. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -932,7 +932,7 @@ description: "8 operations tagged world.execution."
 
 **Search a world's graph for candidate refs (external agent).** External agents only: world:read, canQuery, risk tier T0, and the world's externalAgentReadEnabled flag. x-origin-system is required. Runs a query_execution through ExecutionOrchestrator, which re-authorizes and enforces quota, then performs a world-graph search and returns ranked candidate refs. Read-only and not idempotency-keyed.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1142,7 +1142,7 @@ description: "8 operations tagged world.execution."
 
 **Read the durable transcript of a world chat session.** Returns up to the first 500 messages of the session in ascending creation order, limited to world-visible tiers (world_public, world, world_internal); principal/private messages are never returned. Message bodies are loaded from storage; messages whose body cannot be read or has no text are silently skipped. worldId may be the world UUID or the world name, which is normalized before querying. There is no pagination and no check that the caller participated in the session.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1383,7 +1383,7 @@ description: "8 operations tagged world.execution."
 
 **List turns with stored surfaces for a session.** Lists turn ids that have a stored surface.json under the world-owner's storage prefix for the given session id, each with the relative URL of its surface endpoint. No pagination or ordering guarantees beyond the storage listing; no session ownership check is performed.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1603,7 +1603,7 @@ description: "8 operations tagged world.execution."
 
 **Stream a world's emission-surface events over SSE.** Opens a Server-Sent Events stream of world program events from the world's shared event buffer (scoped by world owner and worldId, not by caller or session). The server polls once per second, sends each event with id = its sequence number, emits ping every 30 seconds, and closes after an event whose type is surface_complete or done, or after 300 consecutive idle polls (about 5 minutes) with a timeout event. Resume with the Last-Event-ID header or lastSeq query parameter; only events with seq greater than that value are replayed (buffer retention is limited). Returns 503 when the external SSE lane is disabled by deployment flag.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

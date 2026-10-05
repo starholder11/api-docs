@@ -11,7 +11,7 @@ description: "1 operation tagged world.lifecycle."
 
 **Pause, resume, archive, or delete a world you own.** Owner-only lifecycle transition delegated to the canonical lifecycle service. delete requires the world to be archived first (otherwise 422 lifecycle_precondition_failed) and produces tombstone and sweep report refs. After success the public directory entry is rebuilt or removed, and archive/delete schedule a background billing sync. The idempotency key is deterministic from intent, world, owner, reason and evidenceRefs.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

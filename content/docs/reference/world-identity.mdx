@@ -11,7 +11,7 @@ description: "1 operation tagged world.identity."
 
 **Update a world's display name, description, or persona title.** Owner-only partial update of identity fields on the world registry record; the world slug and handle never change. Only keys present in the body are changed: displayName null or blank resets to the world name, description null clears it, worldPersonaTitle must be one of the allowed titles or null to clear. If nothing would change, the call succeeds without writing (directoryDisposition 'unchanged'), so repeats are safe.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

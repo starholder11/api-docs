@@ -11,7 +11,7 @@ description: "3 operations tagged world.bookmarks."
 
 **List the caller's world bookmarks.** Returns all of the caller's world bookmarks, newest first, from the Postgres bookmark mirror. A bookmark is only a pointer and confers no access to the world. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -110,7 +110,7 @@ description: "3 operations tagged world.bookmarks."
 
 **Bookmark a world.** Adds a bookmark for a world the caller can currently read or has a pending invite to. Writes the canonical bookmark JSON to storage, mirrors it in Postgres, and upserts a rebuildable graph edge. Idempotent: if the caller already bookmarked the world, returns 200 with the existing bookmarkId and code already_bookmarked.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -272,7 +272,7 @@ description: "3 operations tagged world.bookmarks."
 
 **Remove a world bookmark.** Removes one of the caller's bookmarks by bookmarkId, deleting the stored bookmark JSON, the Postgres mirror row, and the graph edge. The bookmarkId is sent in a JSON request body on the DELETE. Not idempotent: a second call returns 404.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

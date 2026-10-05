@@ -11,7 +11,7 @@ description: "2 operations tagged world.entities."
 
 **List a world's featured entities ranked by narrative reach.** Returns the world's entities ranked by narrative reach: distinct stories containing the entity, then multi-scene story count, scene count, latest supporting story recency, and name. The result includes total, the count of all eligible entities. Only the top N are returned; there is no cursor.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -196,9 +196,9 @@ description: "2 operations tagged world.entities."
 
 `GET /api/v1/world/{worldId}/entities/{ref}`
 
-**Get a world entity's compiled profile.** Resolves a world-scoped entity reference (URL-encoded) to its legacy id and returns the compiled media cross-reference profile: xref identity, media summary, narrative context, and linked entities and settings. References that resolve outside the route world, or do not resolve, return 404. Read-only.
+**Get a world entity's compiled profile.** Resolves a world-scoped entity reference (URL-encoded) to its legacy id and returns the compiled media cross-reference profile: xref identity, media summary, narrative context, and linked entities and settings. A ref the xref registry places in the route world resolves whatever its namespace, including the world-name refs entity_list and textroot_get return (for example `ent:tide_archive:…`). References that resolve outside the route world, or do not resolve, return 404. Read-only.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

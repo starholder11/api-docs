@@ -11,7 +11,7 @@ description: "1 operation tagged world.publish-targets."
 
 **List worlds the caller can publish into right now.** Returns the worlds the caller may currently publish into (owned worlds, worlds where the caller is an editor, and featured public worlds open to authenticated publishing), each with its publish mode, an explanation, and whether it is the default selection (the caller's own 'main' world). Readable-but-not-publishable worlds are excluded. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

@@ -11,7 +11,7 @@ description: "2 operations tagged world.prompt-policy."
 
 **Get the world's effective prompt policy.** Owner-only read of the effective world prompt policy (prompt text, schema version, source) along with the config ref and config hash needed for PUT. Response is Cache-Control: no-store.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -238,7 +238,7 @@ description: "2 operations tagged world.prompt-policy."
 
 **Replace the world's prompt policy text.** Owner-only replacement of the world prompt text (trimmed, 1-2500 characters). baseConfigHash must equal the current world config hash or the call fails with 409. The handler rewrites the full world config with the new promptPolicy, writes a config-update receipt, and updates the world's config ref/hash; it does not use the generic config mutation path or refresh the public directory. Because the hash changes on success, a blind retry returns 409.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

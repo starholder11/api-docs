@@ -11,7 +11,7 @@ description: "3 operations tagged world.seeds."
 
 **List the STAR seed feed and the caller's seed slots.** Returns a page of the seed feed plus the caller's seed slot view (4 slots, each empty, queued or active with cooldown). Pagination uses an opaque string cursor (an offset) and hasMore. The feed is not filtered by the path worldId.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -230,7 +230,7 @@ description: "3 operations tagged world.seeds."
 
 **Place a STAR seed (a staked thought) into one of the caller's slots.** Places a seed thought into slot 0-3, embedding the thought and holding a fixed STAR stake in escrow from the caller's wallet; a thought too similar (&gt; 0.95) to an existing seed is rejected. The mutation is admitted as a HAM turn keyed by caller, slot, thought and matchThreshold. Re-sending the same request replays the prior result (ham.replayed: true, empty receiptRefs) instead of double-charging; if the prior turn has not settled yet, a retryable 409 ERR_IDEMPOTENCY_CONFLICT is returned. matchThreshold defaults to 0.65 and is clamped into 0.55-0.85.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -707,7 +707,7 @@ description: "3 operations tagged world.seeds."
 
 **Withdraw one of the caller's seeds and return its stake.** Withdraws a seed owned by the caller and returns its escrowed STAR stake to the caller's wallet. Only withdrawable seeds can be withdrawn; a second call on the same seed fails with ERR_SEED_NOT_WITHDRAWABLE. This route does not go through HAM admission.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

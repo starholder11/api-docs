@@ -11,7 +11,7 @@ description: "2 operations tagged world.submissions."
 
 **Get submission lifecycle status (legacy, unscoped by world).** Legacy alias that returns the public view of a narrative submission by id without a world in the path; authorization uses the submission's own worldId. Returns lifecycle status, strategy, linked asset/TextRoot/manifest ids, rejection details, extraction readiness and status history, plus manifestReady and manifestItemCount derived from the persisted submission manifest or the linked marketplace bounty manifest. Internal fields (narrativeText, ownerUserId, retryCount, correctionHistory) are omitted. Read-only.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -342,7 +342,7 @@ description: "2 operations tagged world.submissions."
 
 **Finalize an attended submission (legacy body-shaped alias).** Legacy alias of POST .../submit/\{submissionId\}/complete taking the submission id in the body; authorization uses the submission's own world. Finalizes a self_fulfill or post_bounty submission whose media has been accepted (status media_fulfilled): settles topology-seed escrow, hands the accepted media to the pipeline and marks media generation complete, then seals the submission as finalized. Idempotent: an already finalized/registered submission returns 200 with alreadyFinalized=true. Not allowed for platform_default submissions, which the platform finalizes itself. A post_bounty submission whose bounty media the issuer accepts on the bounty review route never reaches media_fulfilled and never needs this call: the platform finalizes and registers it.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

@@ -11,7 +11,7 @@ description: "2 operations tagged world."
 
 **Provision an additional world for the calling owner.** Creates a new private world for the caller with the given worldName via the canonical lifecycle mutation service, then removes any stale public-directory entry and schedules a billing sync in the background. worldName must match ^[a-z][a-z0-9_]\{0,31\}$ and may not be 'main'; reusing an existing name for the same owner returns 409. The lifecycle idempotency key is deterministic from owner and name.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -240,7 +240,7 @@ description: "2 operations tagged world."
 
 **Get a world's detail and the caller's relationship to it.** Returns a management row describing the world (handle, display name, description, owner, lifecycle, visibility) and the caller's posture: relationship, canRead, canPublish, pending invite, bookmark, default/bootstrap flags and avatar. A descriptive row is returned when the caller can read the world by policy or has an invite, bookmark, ownership or membership; otherwise the response is 404 to avoid revealing existence.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

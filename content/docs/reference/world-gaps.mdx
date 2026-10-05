@@ -11,7 +11,7 @@ description: "2 operations tagged world.gaps."
 
 **List gap coordinates as feed entries.** Authorizes with authorizeRouteRequest (human or external_agent; world:read and canAccessGapCoordinates, AES §8.4.5). Reads the scalar fields of the world's own GapCoordinate nodes, applies SKIP/LIMIT, then post-filters by status, significance, and the visibility surface, keeping only open and filled gaps. Each result is projected to a GapFeedEntry. internal_topology is not served to external agents (WORLD_TOPOLOGY_ENGINE §10.1): an external agent that omits surface or asks for internal_topology receives agent_readable. agent_readable is refused when the world policy sets agentGapReadEnabled to false; it is otherwise enabled by default.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -167,7 +167,7 @@ description: "2 operations tagged world.gaps."
 
 **Set a gap coordinate's visibility (world owner).** Authorizes with authorizeRouteRequest: world:write, canAccessGapCoordinates, mutationClass bounty_write, and for external agents the externalAgentAccessEnabled flag. The handler then requires the caller's worldMembership role to be owner. It runs a Neo4j write that sets visibility and updatedAt on the GapCoordinate with the given gapId and returns the raw updated node. Repeating the same visibility is a harmless overwrite.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

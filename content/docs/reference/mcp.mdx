@@ -11,7 +11,7 @@ description: "1 operation tagged mcp."
 
 **MCP Streamable HTTP endpoint (JSON-RPC 2.0, JSON response mode).** Model Context Protocol server for Starholder world tools. Send one JSON-RPC 2.0 message (or a batch array) per POST with the API key in X-Api-Key or Authorization: Bearer. Supported methods: initialize (negotiates protocolVersion 2025-06-18, 2025-03-26 or 2024-11-05), ping, tools/list (the tools this key may call), tools/call. Each tools/call runs through the same per-call gate and dispatches to the tool's bound /api/v1 route with the caller's key, so a tool can do exactly what its route allows for this key. Tool results use MCP content plus structuredContent; tool-level denials return isError: true. Notifications receive 202 with no body. The server is stateless (no Mcp-Session-Id) and does not offer a GET event stream.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

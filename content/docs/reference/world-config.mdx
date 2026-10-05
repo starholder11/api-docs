@@ -11,7 +11,7 @@ description: "2 operations tagged world.config."
 
 **Get the owner's world settings surface and current config hash.** Owner-only read of the world config management surface: the current configHash (needed as baseConfigHash for PATCH), the list of editable JSON-pointer paths, the policy bundle, and public directory settings. Response is marked Cache-Control: no-store.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -238,7 +238,7 @@ description: "2 operations tagged world.config."
 
 **Apply a JSON Patch to the world config with optimistic concurrency.** Owner-only. Applies RFC 6902 JSON Patch operations to the world config through the canonical config mutation service, which validates that only editable paths are touched, writes the new config, refreshes the registry mirror and public directory entry, and records HAM evidence. baseConfigHash must equal the current config hash (from GET config), otherwise 409; after success the hash changes, so a blind retry of the same patch returns 409. Response is Cache-Control: no-store.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

@@ -46,7 +46,7 @@ A switch is something you decide to do, not a step every submission takes. `work
 
 ### The `workflow` object
 
-Every submission response carries a `workflow` object: the submit `201`, the submission read, the brief, strategy, and approve responses, the manifest read's `202` pending answer, and the fulfillment read. It states your lane, where review stands, the one condition the submission is waiting on, and the exact calls that are valid now:
+Every submission read carries a `workflow` object: the submit `201`, the submission read, the extraction read (its `200` and its `202` pending answer), the brief, strategy (`200` and `207`), and approve responses, the manifest read's `202` pending answer, and the fulfillment read. It states your lane, where review stands, the one condition the submission is waiting on, and the exact calls that are valid now:
 
 ```json
 {
@@ -82,9 +82,9 @@ Every submission response carries a `workflow` object: the submit `201`, the sub
 | `registration_running` | The platform is finalizing and registering the story | Poll |
 | `rejected` | The submission was rejected | Read `rejection`; resubmit with a new `submissionId` if allowed |
 
-`blockingReason` is `null` once the story is `registered`. While the submission waits on extraction or the platform, `nextActions` includes `poll_submission`: read the submission again in about ten seconds. An empty `nextActions` means the submission is done.
+`blockingReason` is `null` once the story is `registered`, and `nextActions` then lists only `get_playback`: open what the story made (step 9). While the submission waits on extraction or the platform, `nextActions` includes `poll_submission`: read the submission again in about ten seconds. A rejected submission lists no actions.
 
-Only `workflow` tells you what the submission is waiting on. A response without `workflow` is not a blocking reason and does not change the wait. That includes every error, such as `422 ERR_MANIFEST_EMPTY` from the manifest read, and the manifest itself once it exists. Keep the last `workflow` you read, or read the submission again for a fresh one. A `202` pending is a wait, not an error, and it carries `workflow`.
+Only `workflow` tells you what the submission is waiting on. A response without `workflow` is not a blocking reason and does not change the wait. These answers carry no `workflow` by design: the manifest `200` (the work manifest document itself), the media upload URL, media submit and review, bounty review, complete, and every error, such as `422 ERR_MANIFEST_EMPTY` from the manifest read. Keep the last `workflow` you read, or read the submission again for a fresh one. A `202` is always a wait, never an error: it has `status: "pending"`, a `Retry-After` header, and `workflow`, on the extraction read and the manifest read alike.
 
 ## Overview
 
@@ -98,9 +98,10 @@ Only `workflow` tells you what the submission is waiting on. A response without 
 7. Review media               POST .../media/review                   → accepted | rejected (self_fulfill)
                               POST .../bounties/{bountyId}/review     → accept | revision_requested | reject (post_bounty)
 8. Complete                   POST .../complete                       → finalized (self_fulfill only)
+9. Open the story             GET  /api/v1/world/{worldId}/textroots/{ref} → scenes, entities, settings, image URLs
 ```
 
-On the lazy lane, the platform produces the media and finalizes the submission itself; steps 6 through 8 are not yours, and step 3 is yours only with `requestExtractionReview`. With `post_bounty`, a bounty fulfiller produces the media, you review it on the bounty (step 7), and the platform finalizes the story: steps 6 and 8 are not yours. Every run ends the same way: keep polling step 2 until `status` is `registered`.
+On the lazy lane, the platform produces the media and finalizes the submission itself; steps 6 through 8 are not yours, and step 3 is yours only with `requestExtractionReview`. With `post_bounty`, a bounty fulfiller produces the media, you review it on the bounty (step 7), and the platform finalizes the story: steps 6 and 8 are not yours. Every run ends the same way: keep polling step 2 until `status` is `registered`, then open the story (step 9).
 
 ## Step 1 — Create and Publish (Submit the Narrative)
 
@@ -129,7 +130,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narr
 
 The production-mode fields are `requestedWorkStrategy` (`platform_default`, `self_fulfill`, or `post_bounty`), `creativeBrief`, `requestedBountyBudgetStar` (a decimal string or number; required with `post_bounty`), `skipExtractionReview`, and `requestExtractionReview`. A `post_bounty` budget must be a positive \$STAR amount of at least 100, the media-production bounty floor; a lower one is rejected at submit with `ERR_BUDGET_BELOW_FLOOR`, so you learn it before anything is stored. `self_fulfill` and `post_bounty` pause for your extraction review (step 3) unless `skipExtractionReview` is true; while extraction runs, the `extraction_running` description says so. The platform applies the requested strategy when extraction completes, or when you approve the extraction if it paused for review. Until then `workflow.strategySource` is `requested`, and the workflow treats the strategy as decided: it does not list `choose_strategy`.
 
-**Response (201):** `{ submissionId, status: "accepted_for_extraction", estimatedExtractionTimeMs, fulfillmentStrategy, requestedWorkStrategy, skipExtractionReview, requestExtractionReview, workflow, textAssetId?, textRootId? }`. The narrative first passes the quality floor, the 24-hour duplicate check, coherence, content-safety, and governance checks. A rejection is a `422` with a structured reason; see [Collaborative Production](/docs/guides/collaborative-production) for what the gates look for. Each call counts against your daily narrative-submission quota, replays included.
+**Response (201):** `{ submissionId, status: "accepted_for_extraction", estimatedExtractionTimeMs, fulfillmentStrategy, requestedWorkStrategy, skipExtractionReview, requestExtractionReview, workflow, textAssetId?, textRootId? }`. The narrative first passes the quality floor, the 24-hour duplicate check, coherence, content-safety, and governance checks. A rejection is a `422` whose `rejection.reasons` names every failed field: a 42-word body with a 1 \$STAR `post_bounty` budget gets both the `narrativeText` word-count reason and `ERR_BUDGET_BELOW_FLOOR`. When only the production-mode fields fail, nothing is stored and the same `submissionId` can carry the corrected body; otherwise resubmit with a new `submissionId`. See [Collaborative Production](/docs/guides/collaborative-production) for what the gates look for. Each call counts against your daily narrative-submission quota, replays included.
 
 ## Step 2 — Poll the Submission
 
@@ -138,7 +139,7 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_
   -H "X-Api-Key: $API_KEY"
 ```
 
-A typical `status` progression is `accepted`, `published`, and `pipeline_running`, then `awaiting_extraction_review` or `extraction_complete`, then `manifest_issued`, `media_generating`, `media_fulfilled`, `finalized`, and `registered`, when the story is published and playable. On the lazy lane the status stays `extraction_complete` while the platform produces the media, then moves to `finalized` and `registered`; follow production on `GET .../fulfillment`. With `post_bounty` the status stays `manifest_issued` while the bounty waits on a fulfiller and your review, moves to `media_generating` once you accept a media set, then to `finalized` and `registered`; it never passes through `media_fulfilled`. The response schema lists every value, including `rejected` and `correction_requested`. The response also carries `extractionReady`, `manifestReady`, `manifestItemCount`, `workflow`, `requestedWorkLastError` (set when a requested `post_bounty` could not be posted), and any rejection details. Poll about every ten seconds while `workflow.nextActions` includes `poll_submission`; extraction usually takes a couple of minutes. While `workflow.waitingOn` is `extraction`, the extraction read is partial, the manifest read answers `202` pending, and the fulfillment read reports `pending`. None of those is an error. When `workflow.waitingOn` is `creator`, `workflow.nextActions` lists what to call and `workflow.blockingReason` says why.
+A typical `status` progression is `accepted`, `published`, and `pipeline_running`, then `awaiting_extraction_review` or `extraction_complete`, then `manifest_issued`, `media_generating`, `media_fulfilled`, `finalized`, and `registered`, when the story is published and playable. On the lazy lane the status stays `extraction_complete` while the platform produces the media, then moves to `finalized` and `registered`; follow production on `GET .../fulfillment`. With `post_bounty` the status stays `manifest_issued` while the bounty waits on a fulfiller and your review, moves to `media_generating` once you accept a media set, then to `finalized` and `registered`; it never passes through `media_fulfilled`. The response schema lists every value, including `rejected` and `correction_requested`. The response also carries `extractionReady`, `manifestReady`, `manifestItemCount`, `workflow`, `requestedWorkLastError` (set when a requested `post_bounty` could not be posted), and any rejection details. Poll about every ten seconds while `workflow.nextActions` includes `poll_submission`; extraction usually takes a couple of minutes. While `workflow.waitingOn` is `extraction`, the extraction read answers `202` pending until extraction writes output and is partial after that, the manifest read answers `202` pending, and the fulfillment read reports `pending`. Each carries `workflow`; none of those is an error. When `workflow.waitingOn` is `creator`, `workflow.nextActions` lists what to call and `workflow.blockingReason` says why.
 
 ## Step 3 — Read, Correct, or Approve the Extraction
 
@@ -147,7 +148,7 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_
   -H "X-Api-Key: $API_KEY"
 ```
 
-The bundle lists chapters and scenes, entities, relationships, and setting instances, plus a `_quality` assessment. It returns `409 ERR_EXTRACTION_NOT_READY` only until the story's TextRoot exists. After that it returns whatever has been extracted so far, so check `_quality` or `extractionReady` before you rely on it.
+The bundle lists chapters and scenes, entities, relationships, and setting instances, plus a `_quality` assessment and `workflow`. Until the story's TextRoot exists it answers `202` pending, the same wait the manifest read answers; read again after `Retry-After`. After that it returns whatever has been extracted so far, so check `workflow.waitingOn` or `_quality` before you rely on it. `409 ERR_EXTRACTION_NOT_READY` means the submission has no TextRoot and is not extracting.
 
 To fix the extraction, send corrections (`202`, processed asynchronously):
 
@@ -157,7 +158,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
   -d '{ "corrections": [ … ] }'
 ```
 
-When review applies (the attended lane unless you skipped it, or any lane with `requestExtractionReview`), the pipeline pauses here: the status is `awaiting_extraction_review` and `workflow.extractionReview` is `awaiting_creator`. Approve the extraction to release it; approval also applies the strategy you requested at submit (and posts a requested bounty). With `platform_default`, approval starts platform production of all media, even if you approve before narration finishes. Approval takes no body and is not idempotent: a second call returns `409`. If a requested bounty cannot be posted, for example because your wallet holds less than the budget (`ERR_INSUFFICIENT_FUNDS`), approval still succeeds: the strategy stays unselected, `requestedWorkLastError` names the code, and `workflow.blockingReason` is `strategy_required`. Choose the strategy in step 5.
+When review applies (the attended lane unless you skipped it, or any lane with `requestExtractionReview`), the pipeline pauses here: the status is `awaiting_extraction_review` and `workflow.extractionReview` is `awaiting_creator`. Approve the extraction to release it; approval also applies the strategy you requested at submit (and posts a requested bounty). With `platform_default`, approval starts platform production of all media, even if you approve before narration finishes. Approval takes no body and is not idempotent: a second call returns `409`. If a requested bounty cannot be posted, for example because your wallet holds less than the budget (`ERR_INSUFFICIENT_FUNDS`), approval still succeeds: the strategy stays unselected, `requestedWorkLastError` names the code, and `workflow.blockingReason` is `strategy_required`. Choose the strategy in step 5. Review happens once per extraction: after you approve, choosing or re-posting a strategy continues from `extraction_complete` (a posted bounty moves the story to `manifest_issued`) and never returns it to review. Only a correction starts a new extraction for you to review.
 
 ```bash
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/extraction/approve \
@@ -261,6 +262,20 @@ Finalization binds your story, its extracted entities and settings, and its medi
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/complete \
   -H "X-Api-Key: $API_KEY"
 ```
+
+## Step 9 — Open the Story
+
+`registered` means the story is published and playable, but it is not where a run ends: open what you made. At `registered`, `workflow.nextActions` lists `get_playback` with the exact path, the story's TextRoot read. The ref is `txt:textroot_<textRootId>:story`, URL-encoded; `textRootId` is on the submission read.
+
+```bash
+REF=$(jq -rn --arg id "$TEXT_ROOT_ID" '"txt:textroot_\($id):story" | @uri')
+curl https://www.starholder.xyz/api/v1/world/starholder_main/textroots/$REF \
+  -H "X-Api-Key: $API_KEY"
+```
+
+The profile carries what the story made. `data.media.sceneVisuals` lists each scene's illustrations in narrative order. `data.entities` and `data.settings` are the story's characters, places, and settings, each with `canonicalVisual.url` and a `ref` you can read with `GET .../entities/{ref}` or `GET .../settings/{ref}`. Every `url` is a direct image URL that opens without a browser session. The story is done once this read answers `200`.
+
+The player a person uses, `/play` or a `/world?worldId=…&sessionId=…` link, needs a browser sign-in. A world session is not the story: its messages and turns read empty.
 
 ## Monitoring Progress
 

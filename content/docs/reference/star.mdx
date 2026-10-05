@@ -11,7 +11,7 @@ description: "14 operations tagged star."
 
 **Get the caller's wallet postings with running balance for a window.** Authorizes with authorizeRouteRequest (human or external_agent). Returns the ledger postings for user:&lt;userId&gt;:wallet between from and to, each with a running balance. Both bounds are required. Read-only, with no pagination.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -149,7 +149,7 @@ description: "14 operations tagged star."
 
 **List the caller's STAR activity (receipts) with cursor paging.** Authorizes with authorizeRouteRequest (human or external_agent; external agents see the owner's activity). Lists the receipts where the user's wallet is sender or recipient, newest first (by occurred_at, then receipt_id descending), each formatted as a StarActivityItem with direction and counterparty labels. It supports a date window, a receipt type filter, and a keyset cursor.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -286,7 +286,7 @@ description: "14 operations tagged star."
 
 **Get one STAR receipt and its activity view.** Authenticates with SessionValidator only, not the dispatcher or authorizer. Loads the receipt by id, requires the caller to be its fromOwnerId or toOwnerId, and returns the raw LedgerReceipt together with its formatted StarActivityItem.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -398,7 +398,7 @@ description: "14 operations tagged star."
 
 **Post an admin ledger adjustment (reversal, correction, reclaim, grant).** Requires both the x-star-ledger-token internal secret and an admin human session (SessionValidator plus getRequestUser().isAdmin). It records a HAM turn in the admin's default HAM world: 'reversal' uses the platform settlement reversal intent and every other type uses the adjustment intent. It then posts a balanced admin_adjustment journal with the supplied postings and finalizes the turn. Every posting account must already exist. For a reversal with originalJournalId, the original receipts are annotated as reversed.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -685,7 +685,7 @@ description: "14 operations tagged star."
 
 **Get the STAR supply report (internal-token gated).** The only gate is the x-star-ledger-token internal secret; there is no session or admin check in the handler. Returns the ledger SupplyReport: total, issued, circulating, and escrowed supply, the treasury, reserve, and reclaimed balances, reward-lane issuance, and the balance check. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -816,7 +816,7 @@ description: "14 operations tagged star."
 
 **List ledger journal entries in a window (internal-token gated).** The only gate is the x-star-ledger-token internal secret, with no session or admin check. Returns the journal entries posted between from and to, with offset paging and optional filters on transactionType and initiatedBy. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -964,7 +964,7 @@ description: "14 operations tagged star."
 
 **Get the caller's STAR wallet balance.** Authorizes with authorizeRouteRequest (human or external_agent). An external agent sees its owner's wallet. Reads the user:&lt;userId&gt;:wallet balance and returns '0' when the account does not exist yet. availableBalance and totalBalance are always the same value. Read-only.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1077,7 +1077,7 @@ description: "14 operations tagged star."
 
 **Fund, release, or return a bounty escrow (internal-token gated).** First requires the x-star-ledger-token header to equal env STAR_LEDGER_INTERNAL_WRITE_TOKEN (403 otherwise, and always 403 when the env var is unset). It then authenticates with SessionValidator. op 'fund' moves STAR from the issuer's wallet into the bounty escrow. 'release' pays escrow to the fulfiller. 'return' sends escrow back to the issuer with a reason. The ledger deduplicates on idempotencyKey: a replay with matching parameters returns the original receipt, and a mismatch returns ERR_IDEMPOTENCY_CONFLICT.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1266,7 +1266,7 @@ description: "14 operations tagged star."
 
 **Hold, settle, or return a seed escrow (internal-token gated).** Uses the same x-star-ledger-token gate followed by SessionValidator as bounty-escrow. op 'hold' moves amount from the seeder's wallet into seed escrow. 'settle' pays the seed amount plus a bonus to the creator for bundleId and returns one or more receipts; the caller must be the seeder or the creator. 'return' refunds the escrow to the seeder. The ledger deduplicates on idempotencyKey.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1494,7 +1494,7 @@ description: "14 operations tagged star."
 
 **Place a seed in one of the caller's slots, escrowing 100 STAR (legacy alias).** This file is a legacy alias of /api/v1/world/\{worldId\}/seeds, but it is a separate implementation. It authenticates with SessionValidator only and resolves the caller's default HAM world rather than taking a worldId. It records a 'world.seed.place' HAM turn, embeds the thought, rejects it if it is too similar to an existing seed (cosine similarity 0.95 or higher), holds 100 STAR in seed escrow, and places the seed as queued or active. Replaying with the same idempotencyKey and the same input returns 200 with ham.replayed=true.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1753,7 +1753,7 @@ description: "14 operations tagged star."
 
 **Withdraw one of the caller's seeds and return its escrow (legacy alias).** This file is a legacy alias of /api/v1/world/\{worldId\}/seeds/\{seedId\}, but it is a separate implementation. It authenticates with SessionValidator only and calls withdrawSeed directly, with no HAM turn and no world scoping. Withdrawing marks the seed withdrawn, frees its slot, and returns the escrowed STAR through the ledger (idempotency key seed_withdraw_return:&lt;seedId&gt;) when the ledger is configured. A second call on the same seed returns 409.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1902,7 +1902,7 @@ description: "14 operations tagged star."
 
 **List the caller's four seed slots and their seeds.** Authenticates with SessionValidator (human only, matching the registry). Always returns exactly four slot rows (slotsPerUser = 4). Each row has its state (empty, queued, or active), an optional cooldown timestamp, and the occupying seed if there is one. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -1970,7 +1970,7 @@ description: "14 operations tagged star."
 
 **Tip another user STAR with a required memo.** Behaves like /api/v1/star/transfer (authorizeRouteRequest, then the HAM 'star.tip' turn, then the ledger tip, then finalization) but requires a memo. The ledger validates the memo: at most 140 characters, plus a memo policy check. A repeat after success returns 409.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -2221,7 +2221,7 @@ description: "14 operations tagged star."
 
 **Transfer STAR from the caller's wallet to another user.** Authorizes with authorizeRouteRequest (human or external_agent; an external agent spends its owner's wallet). It records the mutation as a HAM turn ('star.transfer') in the sender's default HAM world, runs the ledger peer transfer, and finalizes the HAM turn; a ledger failure tombstones the turn. The recipient's wallet is created automatically if it does not exist. A repeated request with the same idempotencyKey and body after success returns 409, not the original result.
 
-**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

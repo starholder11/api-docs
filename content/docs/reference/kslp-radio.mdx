@@ -11,7 +11,7 @@ description: "5 operations tagged kslp-radio."
 
 **List the caller's KSLP radio playlists.** Human only, through authorizeRouteRequest. The owner's username comes from x-user-space or the ham_users table. Lists the caller's playlists newest-updated first with an opaque keyset cursor. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -101,7 +101,7 @@ description: "5 operations tagged kslp-radio."
 
 **Create a KSLP radio playlist (Idempotency-Key required).** Human only. Creates a playlist owned by the caller: the name is NFC-normalized and trimmed, and orderedRefs must be canonical refs. The Idempotency-Key header is required. Replaying the same key with the same request returns the stored playlist with replayed=true, and reusing the key with a different request returns 409. Writes are serialized with a Redis lock (15 s).
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -239,7 +239,7 @@ description: "5 operations tagged kslp-radio."
 
 **Get one of the caller's KSLP radio playlists.** Human only. Loads the playlist from the caller's owner-scoped storage. Another user's playlist is indistinguishable from a missing one and returns 404. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -336,7 +336,7 @@ description: "5 operations tagged kslp-radio."
 
 **Update a playlist's name or refs with optimistic concurrency.** Human only. Requires the Idempotency-Key header and expectedRevision; the update applies only when expectedRevision equals the current revision, and the revision is then incremented. At least one of name or orderedRefs must be supplied. Replays are recognized only against the most recent mutation's key and request hash.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -498,7 +498,7 @@ description: "5 operations tagged kslp-radio."
 
 **Delete a playlist at an expected revision.** Human only. Requires a JSON body containing expectedRevision, which is unusual for DELETE. The playlist is deleted only when expectedRevision matches the current revision. Deleting a missing or foreign playlist also returns 204. The Idempotency-Key header is not read.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

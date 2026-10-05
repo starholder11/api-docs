@@ -11,7 +11,7 @@ description: "3 operations tagged world.memberships."
 
 **List world memberships (a world's collaborators or your own).** With worldId, returns the active collaborators of that world (oldest first) and requires the caller to own it. Without worldId, returns all of the caller's own memberships in every status (active, revoked, left), newest first. Each row includes username and displayName. Read-only.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -134,7 +134,7 @@ description: "3 operations tagged world.memberships."
 
 **Revoke a collaborator's membership in a world you own.** Revokes another user's active membership in a world the caller owns (status revoked, endReason revoked). worldId and userId are sent in a JSON request body on the DELETE. Not idempotent: a repeat call returns 404 membership_not_found.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -297,7 +297,7 @@ description: "3 operations tagged world.memberships."
 
 **Leave a world you are a member of.** Ends the caller's active membership in the given world (status left, endReason left). World owners have no membership row, so this does not apply to owned worlds. Not idempotent: once left, a repeat call returns 404.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 

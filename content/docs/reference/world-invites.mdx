@@ -11,7 +11,7 @@ description: "3 operations tagged world.invites."
 
 **List pending world invites received by or sent from the caller.** Lists pending world invites, newest first. perspective=received (default) returns invites addressed to the caller; perspective=sent returns invites the caller issued for the given world and requires the caller to own it. Before listing, overdue pending invites in scope are marked expired (and their inbox rows synced), so this GET can mutate invite state.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -150,7 +150,7 @@ description: "3 operations tagged world.invites."
 
 **Invite a user to a world you own.** Issues a direct-user invite to a world the caller owns, proposing a viewer or editor role, with an optional message and expiry. The world may be given by worldId or by handle '@owner/worldName'; the invitee by platform user id (preferred) or by a username that is matched case-insensitively against username, display name, contact email, or user id. Creates the invite and the invitee's inbox row in one transaction. Structurally idempotent: a second pending invite for the same world, user and role returns 409.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
@@ -379,7 +379,7 @@ description: "3 operations tagged world.invites."
 
 **Accept, decline, revoke or expire a world invite.** Applies a lifecycle action to a world invite. accept (invitee only) closes the invite and creates or reactivates an active membership with the proposed role; decline (invitee only) closes it; revoke (issuing owner only) closes it with an optional reason; expire marks an overdue pending invite expired. Each transition also syncs the invitee's inbox row. Terminal invites return 409; a pending invite whose expiry has passed is treated as terminal 'expired' for accept/decline/revoke.
 
-**Credentials.** Any one of: browser session.
+**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
