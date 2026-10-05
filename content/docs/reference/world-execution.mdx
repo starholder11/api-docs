@@ -701,7 +701,7 @@ description: "8 operations tagged world.execution."
 
 `POST /api/v1/world/{worldId}/execute/async`
 
-**Enqueue an asynchronous world chat turn and get a pollable job.** Uses the same authorization and body as /execute, plus an optional webhookUrl, but returns 202 with an AsyncJobEnvelope. The order of checks is: quota first (429), then the idempotency replay check, webhook validation, and HAM admission. A job record is then written to Redis (24 h TTL), and a best-effort internal POST to /api/v1/jobs/\{jobId\}/run starts it. Poll GET /api/v1/jobs/\{jobId\} (pollUrl) for the result. Replays with the same key and payload return the cached 202 envelope.
+**Enqueue an asynchronous world chat turn and get a pollable job.** Uses the same authorization and body as /execute, plus an optional webhookUrl, but returns 202 with an AsyncJobEnvelope. The order of checks is: quota first (429), then the idempotency replay check, webhook validation, and HAM admission. A job record is then written to Redis (24 h TTL), and an internal POST to /api/v1/jobs/\{jobId\}/run starts it; the route answers 202 without waiting for that call and keeps it alive with waitUntil, so the job starts while the client polls. Poll GET /api/v1/jobs/\{jobId\} (pollUrl) for the result. Replays with the same key and payload return the cached 202 envelope.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; platform persona token. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a platform persona token. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
