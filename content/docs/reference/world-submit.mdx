@@ -869,7 +869,7 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/{submissionId}/extraction/approve`
 
-**Approve a submission's extraction and release it to manifest build.** Approves an extraction that is waiting for review (status awaiting_extraction_review or correction_requested): applies any deferred work-strategy request captured at submit time, transitions the submission to extraction_complete, queues the backlot media-generation resume stage, clears the pipeline hold, and emits an audit event. Rejects empty extractions (no entities and no settings). Takes no request body. Not idempotent: a second call returns 409 because the status is no longer approvable.
+**Approve a submission's extraction and release it to manifest build.** Approves an extraction that is waiting for review (status awaiting_extraction_review or correction_requested): applies any deferred work-strategy request captured at submit time, transitions the submission to extraction_complete, queues the backlot media-generation resume stage, clears the pipeline hold, and emits an audit event. Rejects empty extractions (no entities and no settings). A requested post_bounty that cannot be posted does not fail the approval: when its budget fails the budget rule or the marketplace refuses the post (for example ERR_INSUFFICIENT_FUNDS), the code is recorded in requestedWorkLastError, the strategy stays unselected, and the 200 workflow blocks on strategy_required naming it. A retryable failure is a 500 and nothing is approved. Takes no request body. Not idempotent: a second call returns 409 because the status is no longer approvable.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
@@ -1863,7 +1863,7 @@ description: "15 operations tagged world.submit."
         "string",
         "number"
       ],
-      "description": "Required for post_bounty unless a budget was already persisted on the submission (a persisted budget takes precedence). Only emptiness is validated; a non-numeric or non-positive value is sent to the STAR ledger as-is while the marketplace bounty budget falls back to 100."
+      "description": "Required for post_bounty unless a budget was already persisted on the submission. Must be a positive $STAR decimal (400 ERR_VALIDATION_FAILED) of at least 100, the media-production bounty floor (409 ERR_BUDGET_BELOW_FLOOR); both are checked before anything is saved. A persisted budget that passes this rule takes precedence, because escrow may already hold it; a persisted budget that fails it was never funded and is replaced by this one."
     }
   }
 }
@@ -2052,7 +2052,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-- **400**: Invalid/missing strategy, or a STAR ledger error during post_bounty funding (error.code is the ledger error code). Error codes: `ERR_VALIDATION_FAILED`, `<STAR ledger error code>`.
+- **400**: Invalid/missing strategy, a bountyBudgetStar that is not a positive $STAR decimal (ERR_VALIDATION_FAILED), or a STAR ledger error during post_bounty funding (error.code is the ledger error code). Error codes: `ERR_VALIDATION_FAILED`, `<STAR ledger error code>`.
 
   `application/json`
 
@@ -2107,7 +2107,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-- **409**: A different strategy is already selected (ERR_STRATEGY_ALREADY_SET); the running work order can no longer change lanes because media production started or fulfillment is complete (ERR_STRATEGY_SELECTION_CLOSED); extraction not ready for post_bounty; submission sealed; or a bounty-flow conflict. Error codes: `ERR_STRATEGY_ALREADY_SET`, `ERR_EXTRACTION_NOT_READY`, `ERR_SUBMISSION_SEALED`, `ERR_BUDGET_BELOW_FLOOR`, `ERR_INSUFFICIENT_FUNDS`, `ERR_BOUNTY_POSTING_LIMIT`, `ERR_STRATEGY_SELECTION_CLOSED`.
+- **409**: A different strategy is already selected (ERR_STRATEGY_ALREADY_SET); the running work order can no longer change lanes because media production started or fulfillment is complete (ERR_STRATEGY_SELECTION_CLOSED); extraction not ready for post_bounty; a post_bounty budget below the media-production floor of 100 (ERR_BUDGET_BELOW_FLOOR, before anything is saved); submission sealed; or a bounty-flow conflict. Error codes: `ERR_STRATEGY_ALREADY_SET`, `ERR_EXTRACTION_NOT_READY`, `ERR_SUBMISSION_SEALED`, `ERR_BUDGET_BELOW_FLOOR`, `ERR_INSUFFICIENT_FUNDS`, `ERR_BOUNTY_POSTING_LIMIT`, `ERR_STRATEGY_SELECTION_CLOSED`.
 
   `application/json`
 
@@ -2874,7 +2874,7 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/narrative`
 
-**Create and publish a story: submit a narrative and start its production pipeline.** Creates and publishes a story in one call: validates the narrative, publishes it as a TextAsset in the path world, and starts its production pipeline. There is no separate create or publish operation. Required: submissionId (client-chosen idempotency key), title (3 to 500 characters), narrativeText (50 to 50,000 whitespace-separated words after trimming; 49 is rejected), contentHash (lowercase hex SHA-256 of the UTF-8 trimmed narrativeText), and originSystem. requestedWorkStrategy (platform_default | self_fulfill | post_bounty) decides how media is produced; sending it is the decision, and the response workflow does not ask for a strategy again. The 201 workflow lists the next calls and the one blockingReason; the story.publish workflow on /.well-known/ham orders every step. Validates a narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset in the path world and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed as a revision). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Poll GET .../submit/\{submissionId\} for lifecycle progress.
+**Create and publish a story: submit a narrative and start its production pipeline.** Creates and publishes a story in one call: validates the narrative, publishes it as a TextAsset in the path world, and starts its production pipeline. There is no separate create or publish operation. Required: submissionId (client-chosen idempotency key), title (3 to 500 characters), narrativeText (50 to 50,000 whitespace-separated words after trimming; 49 is rejected), contentHash (lowercase hex SHA-256 of the UTF-8 trimmed narrativeText), and originSystem. requestedWorkStrategy (platform_default | self_fulfill | post_bounty) decides how media is produced; sending it is the decision, and the response workflow does not ask for a strategy again. self_fulfill and post_bounty pause at awaiting_extraction_review unless skipExtractionReview is true. With post_bounty, requestedBountyBudgetStar must be at least 100 $STAR, the media-production bounty floor; a lower budget is rejected here (422 ERR_BUDGET_BELOW_FLOOR). The 201 workflow lists the next calls and the one blockingReason; the story.publish workflow on /.well-known/ham orders every step. Validates a narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset in the path world and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed as a revision). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Poll GET .../submit/\{submissionId\} for lifecycle progress.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
 
@@ -2957,7 +2957,7 @@ description: "15 operations tagged world.submit."
         "string",
         "number"
       ],
-      "description": "STAR budget for post_bounty (decimal string or number); required while the STAR ledger is enabled. Ignored by other strategies."
+      "description": "STAR budget for post_bounty: a positive decimal string or number of at least 100, the media-production bounty floor. With post_bounty, a value that is not a positive $STAR decimal is rejected with ERR_VALIDATION_FAILED and one below the floor with ERR_BUDGET_BELOW_FLOOR (422, field requestedBountyBudgetStar). Without a budget the requested post_bounty is not applied (ERR_BOUNTY_BUDGET_REQUIRED) and the workflow asks for post_bounty with bountyBudgetStar after extraction. Ignored by other strategies."
     },
     "requestWork": {
       "type": "object",
@@ -3117,7 +3117,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-- **422**: Submission rejected by validation or governance (also on idempotent replay of a rejected submissionId). Body is NOT the error envelope. Error codes: `MISSING_FIELD`, `submission_quality_floor`, `PROVENANCE_MISMATCH`, `duplicate_submission`, `submission_policy_violation`, `ERR_VALIDATION_FAILED`.
+- **422**: Submission rejected by validation or governance (also on idempotent replay of a rejected submissionId). Body is NOT the error envelope. Error codes: `MISSING_FIELD`, `submission_quality_floor`, `PROVENANCE_MISMATCH`, `duplicate_submission`, `submission_policy_violation`, `ERR_VALIDATION_FAILED`, `ERR_BUDGET_BELOW_FLOOR`.
 
   `application/json`
 
