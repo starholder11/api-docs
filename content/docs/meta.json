@@ -3,14 +3,19 @@
   "pages": [
     "index",
     "getting-started",
-    "---API Reference---",
-    "api-reference",
-    "---SSE Streaming---",
+    "discovery",
+    "authentication",
+    "error-handling",
+    "---Guides---",
+    "guides/collaborative-production",
+    "guides/submission-lifecycle",
+    "guides/marketplace",
+    "guides/emission-surface",
     "guides/sse-streaming",
+    "guides/rate-limits",
     "---MCP Reference---",
     "mcp-reference",
-    "---Guides---",
-    "guides/emission-surface",
-    "guides/submission-lifecycle"
+    "---Operation Reference---",
+    "reference"
   ]
 }

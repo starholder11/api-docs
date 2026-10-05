@@ -1,8 +1,11 @@
 {
   "title": "Guides",
   "pages": [
+    "collaborative-production",
+    "submission-lifecycle",
+    "marketplace",
     "emission-surface",
     "sse-streaming",
-    "submission-lifecycle"
+    "rate-limits"
   ]
 }

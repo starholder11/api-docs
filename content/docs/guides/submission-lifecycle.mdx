@@ -5,156 +5,216 @@ description: End-to-end guide for submitting narratives, managing extraction, fu
 
 This guide walks through the complete submission lifecycle — the process by which stories enter the world. External creators write narratives, the platform analyzes them to extract world objects (entities, settings, relationships, scenes), generates a media plan listing the images that need to be produced, and then integrates everything into the knowledge graph. This pipeline exists so that every story added to the world is structurally consistent, richly linked, and accompanied by visual media.
 
+Every request below is a `world.submit` operation; the [Operation Reference](/docs/reference/world-submit) has the full schemas. All of them take your key in `X-Api-Key` (or `Authorization: Bearer`). They are shown against `starholder_main`; use any world your key may write to.
+
+## Choose a Production Mode First
+
+You decide how much of the story the platform produces **when you submit**, with `requestedWorkStrategy`. The pipeline starts on the lane that choice names, and you can switch lanes later until media production starts (see [Changing the Lane](#changing-the-lane-while-the-pipeline-runs)).
+
+- **Lazy lane** (`platform_default`): the platform produces everything — extraction, graph, narration, the media bundle, 3D, video, and composed scenes — and finalizes the story. Nothing pauses for you, unless you also send `requestExtractionReview: true` to review the extraction first.
+- **Attended lane** (`self_fulfill` or `post_bounty`): the platform produces the extraction, graph, narration, and a work manifest of the media the story needs, then waits. You produce that media yourself (`self_fulfill`) or fund a marketplace bounty for another creator (`post_bounty`). By default the pipeline also pauses after extraction so you can review and correct it; send `skipExtractionReview: true` to go straight to the manifest.
+
+| You want | Send at submit | You do afterwards |
+|----------|----------------|-------------------|
+| The platform to produce everything | `requestedWorkStrategy: "platform_default"` (optional `creativeBrief`) | Nothing; watch `GET .../fulfillment` |
+| To review the extraction, then have the platform produce everything | `"platform_default"` + `requestExtractionReview: true` | Step 3; approval starts platform production; watch `GET .../fulfillment` |
+| To review the extraction, then make the media yourself | `requestedWorkStrategy: "self_fulfill"` | Steps 3, 6, 7, 8 |
+| To make the media yourself, no review | `"self_fulfill"` + `skipExtractionReview: true` | Steps 6, 7, 8 |
+| To review the extraction, then offer a bounty | `"post_bounty"` + `creativeBrief` + `requestedBountyBudgetStar` | Step 3; the bounty posts on approval; then steps 7 and 8 |
+| To offer a bounty, no review | the same + `skipExtractionReview: true` | The bounty posts when extraction completes; steps 7 and 8 |
+| To decide after reading the extraction | no `requestedWorkStrategy` | Step 5 with any strategy, then the matching steps |
+| To decide after reviewing the extraction | no `requestedWorkStrategy` + `requestExtractionReview: true` | Step 3, step 5 before or after approval, then the matching steps |
+| To start attended, then hand everything to the platform | any attended body | Step 5 with `platform_default` before media production starts |
+
+`skipExtractionReview` and `requestExtractionReview` cannot both be `true`; that submission is rejected with `ERR_VALIDATION_FAILED`.
+
+### Changing the Lane While the Pipeline Runs
+
+The lane is not fixed when the pipeline starts. Until media production starts, `POST .../manifest/strategy` (step 5) moves the running pipeline to another strategy, in either direction:
+
+- **Attended to platform.** From an attended or undecided submission, choose `platform_default` during extraction, during extraction review, or once the work manifest is waiting on you. If the manifest is waiting, the platform starts producing all media at once. During review, the review stays open, and approving it starts platform production.
+- **Platform to attended.** On the lazy lane, choose `self_fulfill` while extraction runs. With `requestExtractionReview`, you can choose `self_fulfill` or `post_bounty` any time until you approve. The pipeline then pauses for review (unless you skipped it or it is done) and waits on the work manifest. Without review, `platform_default` becomes final when extraction completes, and an unreviewed lazy-lane submission cannot switch to a bounty, because a bounty needs the extraction.
+- **Undecided to any.** With no strategy at submit, choose any of the three after extraction.
+
+Two rules bound the switch. Once media generation has started, or fulfillment is complete, the call returns `409 ERR_STRATEGY_SELECTION_CLOSED` and nothing changes. And a strategy that has been *selected* (`fulfillmentStrategy` is set, either by step 5 or when the platform applies `requestedWorkStrategy`) cannot be replaced: a different one returns `409 ERR_STRATEGY_ALREADY_SET`. `workflow.nextActions` offers `choose_strategy` exactly while a switch is possible, and its `allowedStrategies` lists the choices.
+
+Every submission response carries a `workflow` object that states your lane, where review stands, who the submission is waiting on, and the exact calls that are valid now:
+
+```json
+{
+  "lane": "attended",
+  "strategy": "post_bounty",
+  "strategySource": "requested",
+  "extractionReview": "awaiting_creator",
+  "waitingOn": "creator",
+  "nextActions": [
+    { "action": "get_extraction", "method": "GET", "path": "/api/v1/world/starholder_main/submit/sub_…/extraction", "description": "…" },
+    { "action": "submit_correction", "method": "POST", "path": "…/correction", "description": "…" },
+    { "action": "approve_extraction", "method": "POST", "path": "…/extraction/approve", "description": "…" }
+  ]
+}
+```
+
+An agent can follow `workflow.nextActions` instead of re-deriving the rules below.
+
 ## Overview
 
 ```
-1. Submit narrative    → submissionId
-2. Poll for extraction → extraction bundle
-3. Correct extraction  → (optional)
-4. Set strategy        → unattended | self | post_bounty
-5. Set creative brief  → (optional)
-6. Fulfill media       → upload media set
-7. Review media        → accept | reject | revision
-8. Complete            → triggers finalization pipeline
+1. Submit narrative           POST .../submit/narrative               → 201 accepted_for_extraction (+ production mode)
+2. Poll the submission        GET  .../submit/{submissionId}          → status + workflow.nextActions
+3. Read, correct, or approve  GET  .../extraction  ·  POST .../correction  ·  POST .../extraction/approve
+4. Set a brief (optional)     PUT  .../manifest/brief                 → before a strategy is selected
+5. Choose a strategy          POST .../manifest/strategy              → if you did not choose at submit, or to switch lanes
+6. Fulfill media (self)       GET .../manifest · POST .../media/staging/upload-url · POST .../media
+7. Review media               POST .../media/review                   → accepted | rejected
+8. Complete                   POST .../complete                       → finalized
 ```
+
+On the lazy lane, the platform produces the media and finalizes the submission itself; steps 6 through 8 are not yours, and step 3 is yours only with `requestExtractionReview`.
 
 ## Step 1 — Submit Narrative
 
+`submissionId` is yours to choose and is the idempotency key: posting the same id again returns the stored outcome. `contentHash` is the lowercase hex SHA-256 of the **trimmed** `narrativeText`.
+
 ```bash
-HASH=$(echo -n "$NARRATIVE_TEXT" | shasum -a 256 | cut -d' ' -f1)
+SUBMISSION_ID="sub_$(uuidgen | tr 'A-Z' 'a-z')"
+HASH=$(printf '%s' "$NARRATIVE_TEXT" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | shasum -a 256 | cut -d' ' -f1)
 
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narrative \
-  -H "Authorization: Bearer $API_KEY" \
+  -H "X-Api-Key: $API_KEY" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"title\": \"The Last Days of Quant Vegas\",
-    \"narrativeText\": \"$NARRATIVE_TEXT\",
-    \"contentHash\": \"$HASH\",
-    \"originSystem\": \"my-agent-v1\"
-  }"
+  -d "$(jq -n --arg id "$SUBMISSION_ID" --arg text "$NARRATIVE_TEXT" --arg hash "$HASH" \
+        '{submissionId: $id, title: "The Last Days of Quant Vegas", narrativeText: $text, contentHash: $hash, originSystem: "my-agent-v1",
+          requestedWorkStrategy: "platform_default"}')"
 ```
 
-**Response (201):** `{ submissionId, status: "accepted", worldId }`
+(The `sed` trim handles single-line text; for multi-line text, trim leading and trailing whitespace in your own code before hashing.)
 
-Save the `submissionId` — you'll need it for every subsequent step.
+The production-mode fields are `requestedWorkStrategy` (`platform_default`, `self_fulfill`, or `post_bounty`), `creativeBrief`, `requestedBountyBudgetStar` (a decimal string or number; required with `post_bounty`), `skipExtractionReview`, and `requestExtractionReview`. The platform applies the requested strategy when extraction completes, or when you approve the extraction if it paused for review.
 
-## Step 2 — Poll for Extraction
+**Response (201):** `{ submissionId, status: "accepted_for_extraction", estimatedExtractionTimeMs, fulfillmentStrategy, requestedWorkStrategy, skipExtractionReview, requestExtractionReview, workflow, textAssetId?, textRootId? }`. The narrative first passes the quality floor, the 24-hour duplicate check, coherence, content-safety, and governance checks. A rejection is a `422` with a structured reason; see [Collaborative Production](/docs/guides/collaborative-production) for what the gates look for. Each call counts against your daily narrative-submission quota, replays included.
 
-The platform's extraction pipeline analyzes your narrative asynchronously — identifying entities (people, organizations, technologies), settings (places, eras), relationships between them, and scene boundaries. Poll until the extraction is ready:
+## Step 2 — Poll the Submission
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID \
+  -H "X-Api-Key: $API_KEY"
+```
+
+A typical `status` progression is `accepted`, `published`, and `pipeline_running`, then `awaiting_extraction_review` or `extraction_complete`, then `manifest_issued`, `media_generating`, `media_fulfilled`, and `finalized`. On the lazy lane the status stays `extraction_complete` while the platform produces the media, then moves to `finalized` and `registered`; follow production on `GET .../fulfillment`. The response schema lists every value, including `rejected` and `correction_requested`. The response also carries `extractionReady`, `manifestReady`, `manifestItemCount`, `workflow`, `requestedWorkLastError` (set when a requested `post_bounty` could not be posted), and any rejection details. Poll every few seconds; extraction usually takes a couple of minutes. When `workflow.waitingOn` is `creator`, `workflow.nextActions` lists what to call.
+
+## Step 3 — Read, Correct, or Approve the Extraction
 
 ```bash
 curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/extraction \
-  -H "Authorization: Bearer $API_KEY"
+  -H "X-Api-Key: $API_KEY"
 ```
 
-- **409** `ERR_EXTRACTION_NOT_READY` — still processing, retry in 5-10 seconds
-- **200** — extraction complete with entities, settings, scenes
+The bundle lists chapters and scenes, entities, relationships, and setting instances, plus a `_quality` assessment. It returns `409 ERR_EXTRACTION_NOT_READY` only until the story's TextRoot exists. After that it returns whatever has been extracted so far, so check `_quality` or `extractionReady` before you rely on it.
 
-## Step 3 — Correct Extraction (Optional)
-
-If the extraction missed something or made errors, submit corrections:
+To fix the extraction, send corrections (`202`, processed asynchronously):
 
 ```bash
-curl -X POST .../submit/$SUBMISSION_ID/correction \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "corrections": [...] }'
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/correction \
+  -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{ "corrections": [ … ] }'
 ```
 
-## Step 4 — Set Fulfillment Strategy
-
-Choose how the media in your work manifest will be produced. This decision is permanent for a given submission — once set, it cannot be changed (**409** `ERR_STRATEGY_ALREADY_SET`).
+When review applies (the attended lane unless you skipped it, or any lane with `requestExtractionReview`), the pipeline pauses here: the status is `awaiting_extraction_review` and `workflow.extractionReview` is `awaiting_creator`. Approve the extraction to release it; approval also applies the strategy you requested at submit (and posts a requested bounty). With `platform_default`, approval starts platform production of all media, even if you approve before narration finishes. Approval takes no body and is not idempotent: a second call returns `409`.
 
 ```bash
-curl -X POST .../submit/$SUBMISSION_ID/manifest/strategy \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "strategy": "self" }'
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/extraction/approve \
+  -H "X-Api-Key: $API_KEY"
+```
+
+## Step 4 — Set a Creative Brief (Optional)
+
+The brief is creative direction for the work manifest. It is required before you choose `post_bounty`, and it locks once a strategy is set.
+
+```bash
+curl -X PUT https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/manifest/brief \
+  -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{ "statement": "Focus on atmospheric lighting and period-accurate signage." }'
+```
+
+## Step 5 — Choose a Fulfillment Strategy
+
+Skip this step if you sent `requestedWorkStrategy` at submit and want to keep it. Use it when you deferred the choice until after reading the extraction, to switch lanes while the pipeline runs ([Changing the Lane](#changing-the-lane-while-the-pipeline-runs)), or to retry a requested `post_bounty` that `requestedWorkLastError` reports as failed. `workflow.nextActions` contains `choose_strategy` whenever this call can succeed.
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/manifest/strategy \
+  -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{ "strategy": "self_fulfill" }'
 ```
 
 | Strategy | Behavior |
 |----------|----------|
-| `unattended` | The platform generates all required media automatically using its own image pipeline. Best for hands-off submissions where you don't need creative control over the visuals. |
-| `self` | You produce and upload the media yourself using the media fulfillment endpoint. Choose this when you want full creative control over the images. |
-| `post_bounty` | The platform posts a marketplace bounty so another creator can claim the media work and produce the images. Choose this when you want human-crafted visuals but don't want to make them yourself. |
+| `self_fulfill` | You produce and upload the media yourself (steps 6 through 8). Choose this for full creative control over the images. |
+| `post_bounty` | The platform posts a marketplace `media_production` bounty, funded from your \$STAR into escrow, so another creator produces the images. Send `bountyBudgetStar` with it. |
+| `platform_default` | The platform produces all remaining media and finalizes the story. On a running attended pipeline this hands production to the platform: at once if the work manifest is waiting on you, or on approval if the extraction is in review. |
 
-## Step 5 — Set Creative Brief (Optional)
+Once a strategy is selected it is permanent: choosing a different one later returns `409 ERR_STRATEGY_ALREADY_SET`. After media generation starts, any change returns `409 ERR_STRATEGY_SELECTION_CLOSED`. Posting the **same** strategy again is allowed, and is how you retry. A `207` with `pipelineWarning` means the strategy was saved but a follow-up failed: `PIPELINE_START_FAILED` (the pipeline did not start) or `STRATEGY_SELECTION_NOT_QUEUED` (the running pipeline was not told yet). Re-post the same strategy in either case.
 
-Provide additional creative direction for the work manifest:
+## Step 6 — Fulfill Media (Self-Fulfill)
+
+Read the work manifest to see what is needed. Each item is one specific image (or video): a character portrait, a scene illustration, setting art.
 
 ```bash
-curl -X PUT .../submit/$SUBMISSION_ID/manifest/brief \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "brief": "Focus on atmospheric lighting..." }'
+curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/manifest \
+  -H "X-Api-Key: $API_KEY"
 ```
 
-## Step 6 — Fulfill Media (Self Strategy)
-
-If you chose `self`, upload media for each **manifest item**. A manifest item is a specific image the platform identified as needed during extraction — for example, a portrait of a character, an illustration of a key scene, or a depiction of a setting. Each item has an ID from the work manifest.
+For each item, request a staging URL. The content type must match the item's delivery spec: images are png, jpeg, or webp up to 25 MB, and videos are mp4 or webm up to 400 MB. Then `PUT` the bytes to `uploadUrl` within 15 minutes, with the same `Content-Type`:
 
 ```bash
-curl -X POST .../submit/$SUBMISSION_ID/media \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/media/staging/upload-url \
+  -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{ "itemId": "item_001", "filename": "portrait.png", "contentType": "image/png", "fileSize": 812345 }'
+
+curl -X PUT "$UPLOAD_URL" -H "Content-Type: image/png" --data-binary @portrait.png
+```
+
+Then submit the set: one `mediaUrl` per item (the `mediaUrl` the staging call returned), covering every entity- and setting-tier item in the manifest.
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/media \
+  -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{
-    "items": [
-      {
-        "manifestItemId": "item_001",
-        "url": "https://my-cdn.com/image.png",
-        "mimeType": "image/png",
-        "width": 1024,
-        "height": 1024
-      }
-    ],
-    "contentHash": "<sha256-of-media-set>"
+    "manifestId": "<manifestId from GET .../submit/{submissionId}>",
+    "contentHash": "<your idempotency token for this set>",
+    "items": [ { "itemId": "item_001", "mediaUrl": "<mediaUrl from staging>" } ]
   }'
 ```
 
-Idempotent on `contentHash` — safe to retry.
+`manifestId` must equal the submission's `manifestId` (the manifest's `workManifestId`). `contentHash` is an opaque token you choose for this set; the server does not verify it against the items. The call is idempotent on it: the same value returns the stored record. A different hash is rejected with `409` unless the earlier set was rejected in review.
 
 ## Step 7 — Review Media
 
-Review the submitted media:
+The submission owner accepts or rejects the pending set. Accepting imports each item into the world and moves the submission to `media_fulfilled`. Rejecting reopens the manifest so you can submit a revised set.
 
 ```bash
-curl -X POST .../submit/$SUBMISSION_ID/media/review \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "decision": "accept" }'
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/media/review \
+  -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{ "decision": "accepted" }'
 ```
 
 ## Step 8 — Complete
 
-Trigger the finalization pipeline. During finalization, the platform binds your story, its extracted entities and settings, and its media into a canonical bundle in the world's knowledge graph. The backlot orchestrator processes the bundle, and \$STAR attribution is triggered based on what you contributed — narrative authorship, media production, or both.
+Finalization binds your story, its extracted entities and settings, and its media into the world, settles any seed escrow, and seals the submission. It takes no body and is idempotent: an already finalized submission returns `200` with `alreadyFinalized: true`. It applies to `self_fulfill` and `post_bounty` submissions whose media was accepted; the platform finalizes `platform_default` submissions itself.
 
 ```bash
-curl -X POST .../submit/$SUBMISSION_ID/complete \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json"
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/complete \
+  -H "X-Api-Key: $API_KEY"
 ```
 
 ## Monitoring Progress
 
-Check status at any point:
-
 ```bash
-# Submission status
-curl .../submit/$SUBMISSION_ID
-
-# Manifest status
-curl .../submit/$SUBMISSION_ID/manifest/status
-
-# Fulfillment status
-curl .../submit/$SUBMISSION_ID/fulfillment
+curl .../submit/$SUBMISSION_ID                    # lifecycle status
+curl .../submit/$SUBMISSION_ID/manifest/status    # manifest status
+curl .../submit/$SUBMISSION_ID/fulfillment        # media fulfillment status (lazy lane: generation progress)
 ```
 
 ## Via MCP
 
-The same lifecycle is available through MCP tools:
-
-1. `submit_narrative` → submit
-2. `get_extraction` → poll extraction
-3. `set_manifest_strategy` → set strategy
-4. `submit_media_set` → fulfill media
-5. `complete_submission` → complete
+The same lifecycle is available as [MCP tools](/docs/mcp-reference/tools): `submit_narrative`, `get_extraction`, `get_work_manifest`, `set_manifest_strategy`, `submit_media_set`, and `complete_submission`. Approval, review, briefs, and staging uploads are HTTP-only.

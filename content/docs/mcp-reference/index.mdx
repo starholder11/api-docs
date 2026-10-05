@@ -1,46 +1,68 @@
 ---
 title: MCP Reference
-description: Model Context Protocol tools for programmatic world interaction.
+description: Connect an MCP client to Starholder over Streamable HTTP with your API key.
 ---
 
-The **Model Context Protocol (MCP)** is an open standard for connecting AI models to external tools and data sources. Instead of making HTTP calls directly, your AI agent connects to Starholder's MCP server and discovers available tools automatically. This is the preferred integration method for AI agents built on frameworks like Claude, GPT, or similar.
+The **Model Context Protocol (MCP)** lets an AI agent discover tools and call them without hand-written HTTP code. Starholder runs an MCP server at `POST /api/v1/mcp`. Every tool runs as your API key: it calls the same `/api/v1` route you could call yourself, and that route checks the call again. A tool can do exactly what the route allows your key to do, and nothing more.
 
-When an API key is provided, tools are capability-gated and dispatched through the same authorization layer as the HTTP API.
+## Connecting
 
-## Transport
-
-MCP uses **stdio JSON-RPC** — a line-oriented protocol where each JSON message is written as a single line on stdin and each response is read as a single line from stdout. No HTTP server is needed; your agent process and the MCP server communicate directly through standard I/O pipes.
-
-```bash
-echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05"}}' | \
-  API_KEY=your_key npm run mcp
+```text
+URL:        https://www.starholder.xyz/api/v1/mcp
+Transport:  Streamable HTTP (JSON responses)
+Auth:       X-Api-Key: <apiKey>   or   Authorization: Bearer <apiKey>
+Protocol:   2025-06-18, 2025-03-26, or 2024-11-05
 ```
 
-## JSON-RPC Methods
+Most MCP clients take this as a remote server URL with a custom header. For example, in a client that reads an `mcpServers` config:
 
-| Method | Description |
-|--------|-------------|
-| `initialize` | Server info and capabilities |
-| `tools/list` | Enumerate available tools (filtered by API key) |
-| `tools/call` | Execute a tool |
-| `resources/list` | Enumerate MCP resources |
-| `resources/read` | Read a resource by URI |
+```json
+{
+  "mcpServers": {
+    "starholder": {
+      "url": "https://www.starholder.xyz/api/v1/mcp",
+      "headers": { "X-Api-Key": "YOUR_API_KEY" }
+    }
+  }
+}
+```
 
-## Tool Catalog (23 tools)
+Or call it directly:
 
-<Cards>
-  <Card title="Read Tools (9)" href="/docs/mcp-reference/read-tools" />
-  <Card title="Execution Tools (4)" href="/docs/mcp-reference/execution-tools" />
-  <Card title="Collab Tools (4)" href="/docs/mcp-reference/collab-tools" />
-  <Card title="Marketplace Tools (6)" href="/docs/mcp-reference/marketplace-tools" />
-</Cards>
+```bash
+curl https://www.starholder.xyz/api/v1/mcp \
+  -H "X-Api-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"my-agent","version":"1.0"}}}'
+```
 
-## MCP Resources
+The server is stateless. It issues no session id, and every HTTP request is authenticated on its own, so a revoked key stops working on its next request. Authentication failures are HTTP errors, not JSON-RPC messages: a request without a key gets `401` with `{ "error": "unauthorized" }`, and a key that fails validation gets `401` with `ERR_AUTH_INVALID` in the standard [error envelope](/docs/error-handling).
 
-MCP resources are read-only data feeds your agent can access for context. Unlike tools, which perform actions, resources provide passive listings that help your agent understand what exists in the world before it starts querying or executing.
+## Methods
 
-| URI | Name | Description |
-|-----|------|-------------|
-| `worlds://list` | Worlds | List all worlds accessible to your API key |
-| `stories://list` | Stories | List textroots (narratives) in the world |
-| `entities://list` | Entities | List entities (people, organizations, technologies, etc.) |
+| Method | Result |
+| --- | --- |
+| `initialize` | The negotiated protocol version (yours, if supported; otherwise `2025-06-18`), `capabilities: { tools }`, `serverInfo: starholder-world`, and short `instructions`. |
+| `ping` | `{}` |
+| `tools/list` | The tools your key's scopes and capabilities allow, each with an input schema and `annotations` (`readOnlyHint`, `idempotentHint`). |
+| `tools/call` | Runs one tool. See results below. |
+
+Notifications (messages without an `id`) receive no reply; a request made only of notifications gets `202`. You may send a JSON-RPC batch as an array. Other methods return `-32601`. The server offers tools only, with no resources or prompts.
+
+## Tool results
+
+A tool that runs returns `content` (the result as JSON text) and `structuredContent` (the same result as an object). Its result is the bound route's response data; the route's entry in the [Operation Reference](/docs/reference) describes it.
+
+A tool that runs and fails, including when the route denies it, returns a normal result with `isError: true`. The text is `<code>: <message>` and `structuredContent.error` is `{ code, message }`, so your model can read why and adjust. For example, a world whose policy blocks external writes yields `ERR_WORLD_POLICY_DENIED`, and a missing capability yields `ERR_PERMISSION_INTERSECTION_DENIED`.
+
+Only two `tools/call` failures are JSON-RPC errors: an unknown tool name (`-32602`) and a key that fails authentication (`-32001`).
+
+## World access
+
+Every world-scoped tool takes a `worldId`. The world's policy applies exactly as it does on the route: `query_world` needs the world to allow external reads (`externalAgentReadEnabled`), and `execute_turn`, `execute_turn_async`, and `propose_inference` need it to allow external access (`externalAgentAccessEnabled`). Your [caller directory](/docs/discovery#3-your-caller-directory) lists these as `callTimeChecks`.
+
+`execute_turn` and `direct_persona` return the turn's final result, as their routes do; neither route streams. To watch a turn unfold as it is written, continue a chat room turn on a [room stream](/docs/guides/sse-streaming#room-streams).
+
+## Tools
+
+The [Tool Catalog](/docs/mcp-reference/tools) lists every tool, generated from the server's own definitions: the scopes and capability each one needs, the route it calls, its mutation class, its idempotency field, and its argument schema.

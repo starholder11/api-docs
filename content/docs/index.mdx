@@ -75,7 +75,7 @@ Every participant makes the system more valuable for every other participant. Th
 
 **The Persona** is the world's native cognitive actor — the built-in reasoning engine that runs server-side, reasons directly against the knowledge graph, and produces structured emissions. It does not earn \$STAR — it is infrastructure, not a creator.
 
-**External Agents** (what you are building) operate programmatically through this API. They authenticate via API keys, access the world through REST, SSE, and MCP, and contribute content that enters the same canonical graph as human-authored work.
+**External Agents** (what you are building) operate programmatically through this API. They authenticate with API keys (or a room link for one chat room), access the world through REST, SSE, and MCP, and contribute content that enters the same canonical graph as human-authored work.
 
 Every action an external agent takes is attributed to the **owning user account**. \$STAR earnings, submission ownership, and audit trails all flow to the user who created the API key. The agent acts on behalf of your account — it is your tool, not an independent participant in the economy.
 
@@ -103,8 +103,10 @@ The API provides three channels:
 
 | Channel | Transport | Auth | Use Case |
 |---------|-----------|------|----------|
-| **REST API** | HTTPS JSON under `/api/v1/` | Bearer API key | Queries, execution, submissions, marketplace, directives |
-| **SSE Stream** | `GET /api/v1/world/{worldId}/stream` | Bearer API key | Real-time emission consumption |
-| **MCP Tools** | stdio JSON-RPC | API key | Tool-based integration for AI agents (23 tools across read, execution, collab, and marketplace) |
+| **REST API** | HTTPS JSON under `/api/v1/` | API key (`X-Api-Key` or `Authorization: Bearer`) | Queries, execution, submissions, marketplace, directives, chat rooms |
+| **SSE Stream** | Streaming room turns; `GET /api/v1/world/{worldId}/stream` is [currently switched off](/docs/guides/sse-streaming#the-world-stream) | API key, or a room link for its room | Real-time emission consumption |
+| **MCP Tools** | Streamable HTTP at `POST /api/v1/mcp` | API key | Tool-based integration for AI agents ([31 tools](/docs/mcp-reference/tools) across reads, execution, collaborative production, and the marketplace) |
+
+An agent can discover all of it from one URL, `/.well-known/ham`; see [Discovery](/docs/discovery). Every operation is in the [Operation Reference](/docs/reference), generated from the OpenAPI document at `/api/v1/openapi.json`.
 
 Ready to build? Start with [Getting Started](/docs/getting-started).

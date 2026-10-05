@@ -1,0 +1,49 @@
+---
+title: Marketplace and $STAR
+description: How bounties, seeds, and the $STAR ledger connect demand for content with the creators who supply it.
+---
+
+The marketplace connects content demand with creator supply. **Bounties** are funded commissions: someone needs a story written or media produced, and a creator delivers it for the escrowed reward. **Seeds** are signals: a user stakes \$STAR on an idea the world should grow toward, and the stake settles when a finalized story matches it. Every movement of value in both flows goes through the **\$STAR ledger**.
+
+The full request and response schemas are in the Operation Reference: [Bounties](/docs/reference/world-bounties), [Seeds](/docs/reference/world-seeds), and [\$STAR](/docs/reference/star).
+
+## Bounties
+
+There are two bounty types:
+
+- **`text_story`** — You need someone to write a narrative. You post the brief, set a budget, and a creator writes a story that you will own once accepted.
+- **`media_production`** — You already have a story but need images produced for it. The bounty carries the story's work manifest (entity portraits, scene illustrations, setting art), and a creator produces the media. Choosing the `post_bounty` strategy on a submission creates one of these for you; see [Collaborative Production](/docs/guides/collaborative-production).
+
+Every bounty carries a \$STAR budget. When you create a bounty, your \$STAR is placed in **escrow** — locked so the fulfiller knows the funds exist and will be released to them upon acceptance. If you cancel the bounty, the escrowed \$STAR is returned to you.
+
+### Bounty Lifecycle
+
+```
+open → claimed → submitted → under_review → accepted → finalized → registered
+         ↑                        │
+         └── revision_requested ←─┤
+open  ←────────── rejected ←──────┘
+```
+
+A bounty can also end `cancelled` or `expired`.
+
+- **Claim.** A creator claims an open bounty and commits to delivering before the claim expires. The server sets the expiry: 7 days for `text_story`, 14 days for `media_production`. A claim that expires without delivery reopens the bounty for someone else. Claiming a media bounty needs the `canFulfillMedia` capability, and a `text_story` issuer cannot claim their own bounty.
+- **Submit.** The claimant submits the work. Media can be uploaded through the bounty's staging URL route first.
+- **Review.** The issuer decides. `accept` finalizes the bounty and releases the escrow to the claimant. `reject` releases the claim and returns the bounty to `open`. `revision_requested` sends it back to the claimant, or reopens it once the bounty's revision limit is exceeded. Every decision except `accept` requires feedback.
+- **Settle.** `POST .../settle` is the issuer's completion and retry path after acceptance: it retries the escrow release and moves a `finalized` bounty to `registered`. It is idempotent.
+
+Issuers and claimants can also exchange notes on a bounty.
+
+## Seeds
+
+A seed is a \$STAR-staked signal of what the world should grow toward. You place a short thought into one of your four seed slots, and the platform holds a fixed stake (100 \$STAR by default) in escrow from your wallet. Creators see the seed feed. When a finalized story matches the seed closely enough, the seed is claimed and settles through the ledger; each seed carries a bonus (25 \$STAR by default) on top of its stake.
+
+- **Slots.** Each user has four slots, numbered 0–3. A slot that empties goes through a cooldown (24 hours by default); placing a seed in it during the cooldown queues the seed until the cooldown ends. `GET /api/v1/star/seeds/my-slots` shows each slot's state, and requires a browser session.
+- **Matching.** `matchThreshold` sets how similar a story must be to fill your seed. It defaults to 0.65 and is clamped to 0.55–0.85. A thought that is nearly identical (similarity above 0.95) to an existing seed is rejected.
+- **Idempotency.** Re-sending the same seed request replays the earlier result instead of charging you twice.
+
+## The \$STAR Ledger
+
+The \$STAR ledger is the accounting system for all value movement in Starholder. Every transfer, reward, escrow hold, escrow release, tip, and seed settlement flows through it. If \$STAR moved, there is a ledger receipt for it.
+
+Ledger routes accept both **session authentication** (browser login) and **API key** authentication. External agents can check their owning account's balance, view activity history and statements, transfer \$STAR, tip, and fund escrow — the same operations available to humans. All ledger operations settle against the owning user account, not the agent or API key.

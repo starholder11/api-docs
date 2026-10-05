@@ -30,15 +30,18 @@ Every API response follows the same structure, so you always know what to expect
 {
   "ok": false,
   "error": {
-    "code": "ERR_AUTH_INVALID",
-    "message": "API key not found or inactive",
+    "code": "ERR_PERMISSION_INTERSECTION_DENIED",
+    "message": "Request is not permitted by the actor permission envelope",
     "retryable": false,
-    "correlationId": "corr_abc123def456"
+    "correlationId": "corr_abc123def456",
+    "details": { "reason": "missing_capability" }
   }
 }
 ```
 
-When `retryable` is `true`, the error may include `retryAfterMs` and the response will carry a `Retry-After` header (in seconds).
+When `retryable` is `true`, the error may include `retryAfterMs`; on `409` and `429` responses the `Retry-After` header carries the same delay in seconds. Authorization denials include `error.details.reason`, which names exactly which check failed (for example `missing_scope`, `missing_capability`, `risk_tier_exceeded`, `world_policy_denied`).
+
+A few routes answer outside this envelope. A rejected narrative submission returns `422` with `{ submissionId, status: "rejected", rejection: { reasons: [{ code, field?, message }] } }`, and the [Operation Reference](/docs/reference) shows the shape each operation returns.
 
 ## HTTP Status Codes
 
@@ -47,40 +50,44 @@ When `retryable` is `true`, the error may include `retryAfterMs` and the respons
 | **200** | Success | — |
 | **201** | Created (narrative submit) | — |
 | **202** | Accepted (async job enqueued — work is happening in the background) | — |
-| **400** | Bad request / validation failure | No |
-| **401** | Authentication failed (missing, invalid, or revoked key) | No |
-| **403** | Authorization denied (insufficient scope, capability, or risk tier) | No |
-| **404** | Resource not found or world policy denied | No |
-| **409** | Conflict (resource not ready, idempotency conflict, duplicate content hash) | Sometimes |
-| **422** | Validation error (schema violation, missing required field) | No |
-| **429** | Rate limited | Yes |
+| **400** | Bad request (malformed JSON, invalid query parameters) | No |
+| **401** | Authentication failed (missing, invalid, expired, or revoked credential) | No |
+| **403** | Authorization denied (insufficient scope, capability, role, or risk tier) | No |
+| **404** | Resource not found, or a world policy denies an external agent | No |
+| **409** | Conflict (resource not ready, idempotency conflict, already decided) | Sometimes |
+| **422** | Validation error, a rejected submission, or a mutation your actor may not perform | No |
+| **429** | Quota exceeded | Yes |
 | **500** | Internal server error | Yes |
-| **503** | Service unavailable (feature disabled, ledger unconfigured) | Yes |
+| **503** | Service unavailable (dependency down, feature disabled, ledger unconfigured) | Yes |
 
 ## Error Codes
+
+This page covers the codes shared across the API. Each operation in the [Operation Reference](/docs/reference) lists the codes its responses can carry.
 
 ### Authentication
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_AUTH_INVALID` | 401 | Bearer token missing, malformed, or not found in the system. Double-check that your `Authorization` header is formatted as `Bearer <your_key>`. |
-| `ERR_AUTH_FORBIDDEN` | 403 | The type of caller (actor class) making this request isn't allowed on this route. For example, an API key hitting a session-only endpoint. |
+| `ERR_AUTH_INVALID` | 401 | The credential is malformed, unknown, expired, or revoked. Send the key as `X-Api-Key: <key>` or `Authorization: Bearer <key>`. A credential that fails never falls back to a browser session. |
+
+A request with no credential and no signed-in session is answered before it reaches the route, with `401` and a bare `{ "error": "unauthorized" }` instead of the envelope.
 
 ### Authorization
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_PERMISSION_INTERSECTION_DENIED` | 403 | Your key lacks the required scope or capability for this operation. "Intersection" refers to the overlap between what your key is allowed to do and what the route requires — if there's no overlap, the request is denied. Check both your key's capability set and its world scopes. |
-| `ERR_WORLD_POLICY_DENIED` | 404 | A world-level policy flag required by this route isn't enabled. This returns 404 (not 403) because when a feature is disabled, the route effectively doesn't exist — revealing its existence would leak information about the world's configuration. Contact the world owner to enable the relevant policy flag. |
-| `ERR_MUTATION_NOT_PERMITTED` | 403 | The specific type of mutation you're attempting isn't allowed for your actor class. This is distinct from scope/capability checks — some mutations are restricted by design regardless of permissions. |
+| `ERR_PERMISSION_INTERSECTION_DENIED` | 403 | Your key lacks the required scope, capability, world role, or risk tier for this operation. "Intersection" refers to the overlap between what your key is allowed to do and what the route requires — if there's no overlap, the request is denied. `error.details.reason` says which check failed. An external agent without membership in the world gets this code with `404`. |
+| `ERR_AUTH_FORBIDDEN` | 403 or 422 | `403`: your actor class isn't allowed on this route — for example, an API key calling a session-only endpoint. `422`: the specific type of mutation you're attempting isn't allowed for your actor class (`details.reason` is `mutation_not_permitted`); some mutations are restricted by design regardless of permissions. |
+| `ERR_WORLD_POLICY_DENIED` | 404 for external agents, 403 for sessions | A world-level policy flag required by this route isn't enabled. External agents get 404 (not 403) because when a feature is disabled, the route effectively doesn't exist — revealing its existence would leak information about the world's configuration. Contact the world owner to enable the relevant policy flag; see [World Policy Flags](/docs/authentication#world-policy-flags). |
+| `ERR_QUOTA_EXCEEDED` | 429 | A rate or daily quota is exhausted; `message` names which one. See [Rate Limits](/docs/guides/rate-limits). |
 
 ### Validation
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_VALIDATION_FAILED` | 422 | Request body fails schema validation. The `message` field will contain details about which fields are invalid or missing. |
-| `ERR_MISSING_ORIGIN_SYSTEM` | 422 | The `x-origin-system` header is required on query and execute routes but wasn't provided. Set it to a string that identifies your agent (e.g., `"my-trading-bot"`). |
-| `ERR_CONTENT_HASH_MISMATCH` | 422 | The `contentHash` you supplied doesn't match the hash computed from the narrative text. This prevents accidental submission of mismatched content. Recompute the hash from the exact text you're submitting. |
+| `ERR_VALIDATION_FAILED` | 400 or 422 | The request fails validation. The `message` field says which fields are invalid or missing. A missing `x-origin-system` header on query and execute routes is reported this way (`422`). |
+
+A rejected narrative submission is not an error envelope; its `rejection.reasons[].code` values include `MISSING_FIELD`, `PROVENANCE_MISMATCH` (the `contentHash` doesn't match the SHA-256 of the trimmed narrative text), `duplicate_submission` (the same text was submitted within 24 hours), `submission_quality_floor`, and `submission_policy_violation`.
 
 ### Resource State
 
@@ -88,17 +95,17 @@ These errors relate to the state of resources as they move through processing pi
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_EXTRACTION_NOT_READY` | 409 | The extraction pipeline (which analyzes submitted narrative content) is still running. This is normal — after submitting a narrative, extraction takes time. Poll the resource periodically and retry when it completes. |
-| `ERR_MANIFEST_NOT_READY` | 409 | The manifest (a structured breakdown of media assets needed for a narrative) hasn't been generated yet. Like extraction, this is part of the normal submission lifecycle. Poll and retry. |
+| `ERR_EXTRACTION_NOT_READY` | 409 | The submitted story doesn't have a TextRoot yet, so there is no extraction to read. This is normal right after submitting a narrative. Poll the submission and retry. |
+| `ERR_MANIFEST_NOT_READY` | 409 | The manifest (a structured breakdown of media assets needed for a narrative) can't be built yet. Like extraction, this is part of the normal submission lifecycle. Poll and retry. |
 | `ERR_STRATEGY_ALREADY_SET` | 409 | The manifest's fulfillment strategy has already been chosen and can't be changed. Strategies are immutable once set to prevent conflicting work. |
-| `ERR_DUPLICATE_CONTENT_HASH` | 422 | The same narrative text (identified by content hash) was already submitted within the deduplication window. This prevents accidental double-submissions. |
-| `ERR_IDEMPOTENCY_CONFLICT` | 409 | An async job with the same idempotency key already exists and is in a conflicting state. Use a new idempotency key if you intend this to be a separate operation. |
+| `ERR_SUBMISSION_SEALED` | 409 | The submission is finalized, or its current state doesn't allow this step. |
+| `ERR_IDEMPOTENCY_CONFLICT` | 409 | The same idempotency key was used with a different payload, or on the other of `execute` and `execute/async`. Use a new idempotency key if you intend this to be a separate operation. |
 
 ### Directive
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `ERR_DIRECTIVE_REJECTED` | 422 | The directive was rejected during **preflight** — a validation step where the system checks whether your directive makes sense before actually executing it. For example, directing a persona to do something contradictory or referencing an entity that doesn't exist. The `message` field will explain why the directive was rejected. |
+| `ERR_DIRECTIVE_REJECTED` | 422 | The directive failed schema validation, or was rejected during **preflight** — a validation step where the system checks whether your directive makes sense before actually executing it, such as an empty intent or an anchor that doesn't exist. The `message` field explains why. |
 
 ## Correlation IDs
 
@@ -113,6 +120,6 @@ For retryable errors (429, some 409, 5xx):
 1. Check the `Retry-After` header (seconds) if present
 2. If no header, use exponential backoff starting at 1 second
 3. Cap at 5 retries for 5xx errors
-4. Never retry 401, 403, or 422 errors
+4. Never retry 401, 403, 404, or 422 errors
 
 For idempotent operations (`execute`, `execute/async`), safe replay is guaranteed via the `idempotencyKey`.

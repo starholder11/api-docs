@@ -9,130 +9,112 @@ The SSE stream is not just a debugging tool or a convenience for real-time UIs. 
 
 Every time the persona thinks, the stream carries the full cognitive output: prose arriving word by word, entity references as they are touched, resolved imagery for each, atmospheric signals from the settings involved, and a final structured snapshot that captures everything the turn produced. This is the raw material from which external applications build their products.
 
-A podcast agent listens to the stream, captures the prose and epistemic signals, and produces episodes framed around what the world just thought. A documentary tool consumes text, media bundles, and entity refs to assemble narrated segments with archival imagery and entity identification cards. An interactive experience reads the refs and topology signals to build navigable exploration interfaces. A live dashboard monitors gap coordinates and seed activity to surface real-time creative opportunities.
+A podcast agent listens to the stream, captures the prose and epistemic signals, and produces episodes framed around what the world just thought. A documentary tool consumes text, media bundles, and entity refs to assemble narrated segments with archival imagery and entity identification cards. An interactive experience reads the refs and topology signals to build navigable exploration interfaces.
 
-None of these products need to parse natural language or reconstruct structure from chat output. The stream delivers typed, machine-readable events that separate content from structure. The prose is there for human consumption. The refs, media, topology, and epistemic signals are there for programmatic consumption. Your application decides which parts it needs.
+None of these products need to parse natural language or reconstruct structure from chat output. The stream delivers typed, machine-readable events that separate content from structure. Your application decides which parts it needs.
+
+Three operations stream. Each one's events are listed in its `x-starholder-sse` extension in the [OpenAPI document](/docs/reference):
+
+| Operation | What streams | Resume |
+| --- | --- | --- |
+| [`GET /api/v1/world/{worldId}/stream`](/docs/reference/world-execution#world_stream) | The world's emission events; [currently switched off](#the-world-stream) | `Last-Event-ID` |
+| [`POST /api/v1/chat/rooms/{chatRoomId}/continue`](/docs/reference/chat#chat_room_continue_post) | One room turn, with `Accept: text/event-stream` | none; reconcile from the room feed |
+| [`POST /api/v1/chat/rooms/{chatRoomId}/addons`](/docs/reference/chat#chat_room_addons_huelva_ask_post) | A private-lane ask, with `Accept: text/event-stream` | none |
 
 ---
 
-## Connecting
+## The World Stream
 
 ```
 GET /api/v1/world/{worldId}/stream
-Authorization: Bearer <api_key>
+X-Api-Key: <apiKey>        (or Authorization: Bearer <apiKey>)
 ```
 
-**Requirements:**
-- `canQuery` capability
-- `world:read` scope
+**Requirements:** the `world:read` scope, the `canQuery` capability, and, for external agents, the world's `externalAgentReadEnabled` policy.
+
+> **Currently switched off.** The hosted platform has this stream disabled: every request answers `503` with error code `external_sse_disabled`, before credentials are checked. Until it is enabled, read a turn from the response of [`execute`](/docs/reference/world-execution#world_execute_sync) or [`consult`](/docs/reference/world-execution#world_consult_sync), fetch its [snapshot](/docs/reference/world-turns#world_turn_surface_get), or follow a room turn on a [room stream](#room-streams).
 
 ```bash
-curl -N -H "Authorization: Bearer $API_KEY" \
+curl -N -H "X-Api-Key: $API_KEY" \
   "https://www.starholder.xyz/api/v1/world/starholder_main/stream"
 ```
 
-The connection stays open. Events arrive as the world operates. When idle, you receive `ping` keepalives every 30 seconds.
+The stream reads the world owner's event buffer for that world, so what it carries is not limited to your own activity. Turns you run through `execute` or `consult` are not written to that buffer; their results come back in the response. The server polls the buffer once per second and sends a `ping` every 30 seconds. It closes after an event of type `surface_complete` or `done`, or after about five minutes with no events, when it sends `timeout`. Reconnect to follow the next turn.
+
+### Event framing
+
+Each buffered event is sent with its SSE `event` name equal to its type and its SSE `id` equal to its sequence number. `data` is the full envelope:
+
+```json
+{ "seq": 42, "timestamp": "2026-10-04T15:02:11.204Z", "executionId": "exec_…", "type": "pee_event", "data": { … } }
+```
+
+The types you will see most are listed below; the second column describes the envelope's `data`.
+
+| Event | `data` carries |
+| --- | --- |
+| `ack` | The turn was admitted |
+| `content` | Reply content as it is produced |
+| `pee_event` | One progressive emission event; see below |
+| `surface_complete` | `surface`: the finished Emission Surface |
+| `done` | `executionId` and `durationMs`: the execution finished |
+| `error` | A failure recorded in the buffer |
+
+Others (`classify`, `tool_trace`, `flow_start`, `node_complete`, and so on) trace the execution; the [`WorldProgramEventEnvelope`](/docs/reference/schemas#worldprogrameventenvelope) schema lists every type. The stream also sends its own `ping`, `timeout`, and, for a stream-side failure, `error`.
+
+### Progressive emission events
+
+`pee_event` is where the turn's structure arrives. Its `data` is a progressive emission envelope (`turnId`, `executionId`, `sequence`, `ts`, and `event`), and `data.event.type` names what arrived:
+
+| `event.type` | What it carries | What you can build with it |
+| --- | --- | --- |
+| `text_delta` | `delta`: the next prose chunk | Live text rendering, TTS feed |
+| `ref_accepted` | An entity, setting, or story the persona is touching (`ref`, `label`, `refType`) | Live entity tracking, graph visualization |
+| `ref_media_bundle` | Resolved imagery for one ref (`bundle[]`: `mediaRef`, `score`, `resolveHref`) | Live gallery, visual narrative |
+| `ref_anomaly` | A ref the persona tried to use that was rejected, with the reason | Quality monitoring |
+| `media_placement_map` | Per-mention image placements | Inline illustration |
+| `context_anchor_preview`, `atmosphere_context` | The scene's setting, atmosphere, and scene profile | Ambient environment, mood-driven UI |
+| `thoughtpacket_preview`, `thoughtpacket_committed` | Claims, uncertainty, and support scores | Confidence framing, research annotation |
+| `contradiction_detected` | Two conflicting claims and their severity | "Competing accounts" segments |
+| `turn_committed`, `commit_deferred`, `turn_aborted` | The turn's commit outcome | Archival, retries |
+| `budget_warning`, `engine_error` | Resource pressure or an engine failure | Monitoring |
+
+Text and metadata arrive interleaved: prose flows continuously while refs and media flush between generation bursts. Render text at once and apply metadata on the next frame.
+
+### Resuming after a disconnect
+
+Send the last `id` you received as `Last-Event-ID`, or as `?lastSeq=`. The server replays buffered events with a higher sequence, up to 200 per poll. Replay depends on buffer retention. If the turn finished while you were away, fetch its persisted snapshot instead:
+
+```bash
+curl -N -H "X-Api-Key: $API_KEY" -H "Last-Event-ID: 42" \
+  "https://www.starholder.xyz/api/v1/world/starholder_main/stream"
+
+curl -H "X-Api-Key: $API_KEY" \
+  "https://www.starholder.xyz/api/v1/world/starholder_main/turns/$TURN_ID/surface"
+```
 
 ---
 
-## What Arrives on the Stream
+## Room Streams
 
-### During Generation
+A chat room turn can stream its own reply. Send `Accept: text/event-stream` to `POST /api/v1/chat/rooms/{chatRoomId}/continue` with a room link or an API key whose identity is in the room. Authorization and validation errors come back as ordinary HTTP responses before the stream opens. After that, the stream sends `ack`, `content`, `pee_event`, and `surface_complete` as the turn runs. `room_commit` follows when the turn is durably recorded, and the stream ends with `done`, or with `error` on failure. These events have no ids. After a dropped stream, read the room's feed or history to see what was committed; posting again creates a new message.
 
-As the persona reasons, you receive events in real time:
-
-| Event | What It Carries | What You Can Build With It |
-|-------|----------------|---------------------------|
-| `text_delta` | Incremental prose chunks | Live text rendering, real-time transcription, TTS feed |
-| `ref_accepted` | Entity/setting references the persona is touching | Live entity tracking, knowledge graph visualization, topic monitoring |
-| `ref_media_bundle` | Resolved imagery for each referenced entity or setting | Live image gallery, visual narrative, media deck |
-
-These events arrive interleaved — text flows continuously while refs and media flush in batches between generation bursts. Your application can render text immediately while queuing metadata for the next animation frame.
-
-### At Finalization
-
-When the persona finishes reasoning:
-
-| Event | What It Carries | What You Can Build With It |
-|-------|----------------|---------------------------|
-| `text_replacement` | The finalized annotated text with inline entity tags | Linked, navigable prose with entity hyperlinks |
-| `ref_anomaly` | Refs the persona tried to use but were rejected | Quality monitoring, hallucination detection |
-| `media_placement_map` | Per-mention image placements with sentence context | Inline illustrations positioned against specific text passages |
-| `atmosphere_context` | Full context layer: atmosphere, music, scene profile, canonical setting | Immersive environment rendering, ambient soundscape, mood-driven UI |
-
-### At Commit
-
-| Event | What It Carries | What You Can Build With It |
-|-------|----------------|---------------------------|
-| `thoughtpacket_committed` | Epistemic data: claims, uncertainty, support score | Confidence framing, fact-checking display, research annotation |
-| `contradiction_detected` | Conflicting claims with severity classification | "Competing accounts" segments, investigative narrative |
-| `surface_complete` | The full Emission Surface — all 8 layers, authoritative snapshot | Complete turn archive, offline processing, consistency checkpoint |
-
-### Lifecycle Events
-
-| Event | Description |
-|-------|-------------|
-| `ping` | Keepalive every 30 seconds |
-| `timeout` | 300 seconds of idle — the stream closes |
-| `error` | Structured error with `code` and `message` |
-| `done` | Stream end signal |
+A private-lane ask (`POST /api/v1/chat/rooms/{chatRoomId}/addons`, which needs the room link **and** `X-Api-Key`) streams `open`, then `ping` every 10 seconds and advisory `progress`, and ends with `settled`. `settled` carries the HTTP status and body the non-streaming call would have returned. Because the stream opens before validation, even a `401` arrives inside `settled` on an HTTP `200`.
 
 ---
 
 ## Building on the Stream
 
-### Live Narrative Products
+### Live narrative products
 
-The simplest use: concatenate `text_delta` events into a growing text display. As refs arrive, highlight mentioned entities in the text. As media bundles arrive, display imagery alongside the entities they belong to. When `atmosphere_context` arrives, adjust the visual environment — lighting, color palette, ambient sound.
+Concatenate `text_delta` deltas into a growing display. As `ref_accepted` events arrive, highlight mentioned entities. As `ref_media_bundle` events arrive, show imagery beside the entities they belong to. When `atmosphere_context` arrives, adjust the environment: lighting, palette, ambient sound. This is how the Starholder hemisphere works; your product can do the same with completely different presentation.
 
-This is how the Starholder hemisphere works. Your product can do the same thing with completely different presentation.
+### Structured media packages
 
-### Structured Media Packages
+Wait for `surface_complete` and consume the Emission Surface as one document:
 
-Wait for `surface_complete` and consume the full Emission Surface as a single structured document. Extract the layers you need:
+- **Podcast:** `text.clean` for narration, `epistemic.claims` for segment structure, `epistemic.contradictions` for "competing accounts"
+- **Documentary:** `text.clean` for voiceover, `media.bundles` for archival imagery, `refs.accepted` for entity cards, `context.atmosphere` for framing
+- **Research report:** `epistemic.claims` with confidence, `topology` for territory assessment, `refs.catalog` for the evidence base
 
-- **Podcast:** `text.clean` for narration script + `epistemic.claims` for segment structure + `epistemic.contradictions` for "competing accounts" segments
-- **Documentary:** `text.clean` for voiceover + `media.bundles` for archival imagery + `refs.accepted` for lower-third entity cards + `context.atmosphere` for environmental framing
-- **Research report:** `epistemic.claims` with confidence scores + `topology.sparsity` for territory assessment + `refs.catalog` for full evidence base
-- **Interactive exploration:** `refs.accepted` for entity graph nodes + `media.placements` for per-mention imagery + `topology.anchors` for navigation starting points
-
-### Reactive Monitoring
-
-Hold the stream open and watch for patterns:
-
-- Track `topology.sparsity` across turns to identify when the persona enters thin territory
-- Monitor `ref_accepted` events to build a live entity frequency map
-- Watch `contradiction_detected` events to flag emerging narrative tensions
-- Use `atmosphere_context` to drive ambient media in physical installations
-
----
-
-## Resuming After Disconnection
-
-Supply the `Last-Event-ID` header or `?lastSeq=` query parameter with the last received sequence number:
-
-```bash
-curl -N -H "Authorization: Bearer $API_KEY" \
-  -H "Last-Event-ID: 42" \
-  "https://www.starholder.xyz/api/v1/world/starholder_main/stream"
-```
-
-The server replays events from its buffer since that sequence number (up to 200 events). If the turn completed while you were disconnected, fetch the persisted snapshot instead:
-
-```bash
-curl "https://www.starholder.xyz/api/v1/world/starholder_main/turns/{turnId}/surface" \
-  -H "Authorization: Bearer $API_KEY"
-```
-
----
-
-## Stream Lifecycle
-
-1. Connect with Bearer auth
-2. Receive `ping` every 30s while idle
-3. When a turn executes, receive `text_delta` and `ref_*` events as the persona reasons
-4. `surface_complete` signals the turn is done — all 8 layers are finalized
-5. If idle for 300s, receive `timeout` and the stream closes
-6. Reconnect with `Last-Event-ID` to resume
-
-See the [Emission Surface Guide](/docs/guides/emission-surface) for a complete field-by-field reference of what `surface_complete` contains.
+See the [Emission Surface Guide](/docs/guides/emission-surface) for every field `surface_complete` contains.
