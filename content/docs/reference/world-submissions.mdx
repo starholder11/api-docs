@@ -340,7 +340,7 @@ description: "2 operations tagged world.submissions."
 
 `POST /api/v1/world/submissions/finalize` **Deprecated** (legacy alias).
 
-**Finalize an attended submission (legacy body-shaped alias).** Legacy alias of POST .../submit/\{submissionId\}/complete taking the submission id in the body; authorization uses the submission's own world. Finalizes a self_fulfill or post_bounty submission whose media has been accepted (status media_fulfilled): settles topology-seed escrow, hands the accepted media to the pipeline and marks media generation complete, then seals the submission as finalized. Idempotent: an already finalized/registered submission returns 200 with alreadyFinalized=true. Not allowed for platform_default submissions, which the platform finalizes itself.
+**Finalize an attended submission (legacy body-shaped alias).** Legacy alias of POST .../submit/\{submissionId\}/complete taking the submission id in the body; authorization uses the submission's own world. Finalizes a self_fulfill or post_bounty submission whose media has been accepted (status media_fulfilled): settles topology-seed escrow, hands the accepted media to the pipeline and marks media generation complete, then seals the submission as finalized. Idempotent: an already finalized/registered submission returns 200 with alreadyFinalized=true. Not allowed for platform_default submissions, which the platform finalizes itself. A post_bounty submission whose bounty media the issuer accepts on the bounty review route never reaches media_fulfilled and never needs this call: the platform finalizes and registers it.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 

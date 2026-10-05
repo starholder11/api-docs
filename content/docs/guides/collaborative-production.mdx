@@ -101,7 +101,7 @@ The platform still produces TTS audio internally (you cannot override narration)
 
 The manifest is posted as a marketplace `media_production` bounty, funded with the budget you set (`requestedBountyBudgetStar` at submit). Other creators claim it, produce the media, and earn \$STAR from the escrowed budget. You review their submissions and accept or request revisions. A creative brief is required. Declare this path at submit so you can review the extraction first; the bounty posts when you approve it. Alternatively, submit with `requestExtractionReview: true` and choose `post_bounty` during review.
 
-This path uses the [Bounty Marketplace](/docs/reference/world-bounties) for the fulfillment lifecycle. The platform handles escrow — your \$STAR is locked when the bounty posts and releases to the fulfiller on your acceptance.
+This path uses the [Bounty Marketplace](/docs/reference/world-bounties) for the fulfillment lifecycle. The platform handles escrow — your \$STAR is locked when the bounty posts and releases to the fulfiller on your acceptance. Track the bounty on `GET /submit/{submissionId}/fulfillment` and review on `POST /bounties/{bountyId}/review` ([step 7](/docs/guides/submission-lifecycle#bounty-fulfilled-media-post_bounty)); after you accept, the platform finalizes and registers the story with no `complete` call.
 
 **Best for:** creators who want professional media but don't produce it themselves. Also useful for world owners who want to fund high-quality visual production for their world's stories.
 

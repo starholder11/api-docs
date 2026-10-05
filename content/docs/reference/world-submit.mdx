@@ -324,7 +324,7 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/{submissionId}/complete`
 
-**Finalize an attended (self_fulfill or post_bounty) submission.** Finalizes a self_fulfill or post_bounty submission whose media has been accepted (status media_fulfilled): settles topology-seed escrow, hands the accepted media to the pipeline and marks media generation complete, then seals the submission as finalized. Takes no request body. Idempotent: an already finalized/registered submission returns 200 with alreadyFinalized=true. Not allowed for platform_default submissions, which the platform finalizes itself.
+**Finalize an attended (self_fulfill or post_bounty) submission.** Finalizes a self_fulfill or post_bounty submission whose media has been accepted (status media_fulfilled): settles topology-seed escrow, hands the accepted media to the pipeline and marks media generation complete, then seals the submission as finalized. Takes no request body. Idempotent: an already finalized/registered submission returns 200 with alreadyFinalized=true. Not allowed for platform_default submissions, which the platform finalizes itself. A post_bounty submission whose bounty media the issuer accepts on the bounty review route never reaches media_fulfilled and never needs this call: the platform finalizes and registers it.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
@@ -1166,7 +1166,7 @@ description: "15 operations tagged world.submit."
 
 `GET /api/v1/world/{worldId}/submit/{submissionId}/fulfillment`
 
-**Get media fulfillment status for a submission.** Returns the fulfillment status surface for a submission: strategy, an aggregate status (pending, claimed, submitted, accepted, rejected, generating, failed), per-manifest-item rows with requirement, delivery spec, media URL and rejection reason, the review status, and the import result once media has been accepted. For platform_default the status is pending until extraction completes (and any requested review is approved), generating during media production, accepted once media is done, and failed when generation stalls or the submission is rejected. blockingReason repeats the submission workflow's blocking reason so this read names the same blocker. Derived from the persisted submission manifest and fulfillment records plus the submission status. Read-only.
+**Get media fulfillment status for a submission.** Returns the fulfillment status surface for a submission: strategy, an aggregate status (pending, claimed, submitted, accepted, rejected, generating, failed), per-manifest-item rows with requirement, delivery spec, media URL and rejection reason, the review status, and the import result once media has been accepted. For platform_default the status is pending until extraction completes (and any requested review is approved), generating during media production, accepted once media is done, and failed when generation stalls or the submission is rejected. For post_bounty the state comes from the linked marketplace bounty (marketplaceBountyId): pending while it is open or not yet posted, claimed once a fulfiller claims it (and again after a revision request), submitted while their media set awaits the issuer's review, accepted once the issuer accepts it, and failed if the bounty is cancelled or expires. While submitted, claimId and bountySubmissionId name the set to review on POST /api/v1/world/\{worldId\}/bounties/\{bountyId\}/review; after acceptance fulfilledByUserId names the fulfiller. blockingReason repeats the submission workflow's blocking reason so this read names the same blocker. Derived from the submission manifest (or the bounty-linked work manifest), the fulfillment record or linked bounty, and the submission status. Read-only.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
@@ -1660,7 +1660,7 @@ description: "15 operations tagged world.submit."
 
 `GET /api/v1/world/{worldId}/submit/{submissionId}/manifest/status`
 
-**Get manifest readiness and fulfillment review status.** Lightweight polling endpoint reporting whether a work manifest exists for the submission (persisted or linked via the marketplace bounty), its id and item count, the fulfillment strategy, whether a media fulfillment has been submitted, and its review status. Read-only; unlike GET .../manifest it never materializes a manifest.
+**Get manifest readiness and fulfillment review status.** Lightweight polling endpoint reporting whether a work manifest exists for the submission (persisted or linked via the marketplace bounty), its id and item count, the fulfillment strategy, whether a media fulfillment has been submitted, and its review status. For post_bounty both come from the linked marketplace bounty, as on the fulfillment read: fulfillmentSubmitted is true once a fulfiller's media set awaits review or was accepted. Read-only; unlike GET .../manifest it never materializes a manifest.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
@@ -1745,7 +1745,7 @@ description: "15 operations tagged world.submit."
           "string",
           "null"
         ],
-        "description": "Fulfillment reviewStatus, else fulfillment.status (e.g. submitted, accepted, rejected)."
+        "description": "post_bounty: the linked bounty's review phase (submitted, revision_requested, accepted, rejected). Otherwise the fulfillment reviewStatus, else fulfillment.status (e.g. submitted, accepted, rejected)."
       }
     }
   }
@@ -2427,7 +2427,7 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/{submissionId}/media/review`
 
-**Accept or reject a submitted media fulfillment.** Records the submission owner's review decision on the pending media fulfillment. Accepting imports each media item into the world (media assets plus graph links), syncs post_bounty STAR escrow, and, when every item imports successfully under self_fulfill/post_bounty, transitions the submission to media_fulfilled and queues the pipeline to resume. Rejecting syncs escrow and reopens the manifest (status manifest_issued) so a revised media set can be submitted. Repeating the same decision is a replay that returns the stored record (and re-runs escrow sync); a conflicting decision returns 409.
+**Accept or reject a submitted media fulfillment.** Records the submission owner's review decision on the pending media fulfillment. Accepting imports each media item into the world (media assets plus graph links), syncs post_bounty STAR escrow, and, when every item imports successfully under self_fulfill/post_bounty, transitions the submission to media_fulfilled and queues the pipeline to resume. Rejecting syncs escrow and reopens the manifest (status manifest_issued) so a revised media set can be submitted. Repeating the same decision is a replay that returns the stored record (and re-runs escrow sync); a conflicting decision returns 409. A media set a bounty fulfiller submits through the marketplace is reviewed on POST /api/v1/world/\{worldId\}/bounties/\{bountyId\}/review instead; this route answers 409 for it because no submission fulfillment record exists.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 

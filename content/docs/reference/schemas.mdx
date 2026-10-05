@@ -10172,6 +10172,17 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
     "fulfillmentSubmitted": {
       "type": "boolean"
     },
+    "marketplaceBountyId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "post_bounty: the marketplace media bounty the story is fulfilled through."
+    },
+    "bountySubmissionId": {
+      "type": "string",
+      "description": "post_bounty: the bounty submission awaiting the issuer's review (or the accepted one). Send it as `submissionId`, with `claimId`, to POST /api/v1/world/{worldId}/bounties/{bountyId}/review."
+    },
     "importResult": {
       "type": "object",
       "properties": {
@@ -10198,10 +10209,12 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
       ]
     },
     "claimId": {
-      "type": "string"
+      "type": "string",
+      "description": "post_bounty: the bounty's active claim."
     },
     "fulfilledByUserId": {
-      "type": "string"
+      "type": "string",
+      "description": "post_bounty: the claimant whose media set the issuer accepted."
     }
   },
   "required": [
@@ -10214,7 +10227,8 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
     "submissionStatus",
     "blockingReason",
     "reviewStatus",
-    "fulfillmentSubmitted"
+    "fulfillmentSubmitted",
+    "marketplaceBountyId"
   ]
 }
 ```
@@ -22923,7 +22937,7 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
   "properties": {
     "action": {
       "type": "string",
-      "description": "Stable id: poll_submission, get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
+      "description": "Stable id: poll_submission, get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, request_upload_url, submit_media, review_media, get_fulfillment, review_bounty_submission, complete."
     },
     "method": {
       "type": "string",
@@ -22935,7 +22949,7 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
     },
     "path": {
       "type": "string",
-      "description": "Absolute API path for this submission."
+      "description": "Absolute API path. Submission routes, except review_bounty_submission, which is the linked marketplace bounty's review route."
     },
     "description": {
       "type": "string"

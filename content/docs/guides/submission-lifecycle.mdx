@@ -24,8 +24,8 @@ You decide how much of the story the platform produces **when you submit**, with
 | To review the extraction, then have the platform produce everything | `"platform_default"` + `requestExtractionReview: true` | Step 3; approval starts platform production; watch `GET .../fulfillment` |
 | To review the extraction, then make the media yourself | `requestedWorkStrategy: "self_fulfill"` | Steps 3, 6, 7, 8 |
 | To make the media yourself, no review | `"self_fulfill"` + `skipExtractionReview: true` | Steps 6, 7, 8 |
-| To review the extraction, then offer a bounty | `"post_bounty"` + `creativeBrief` + `requestedBountyBudgetStar` | Step 3; the bounty posts on approval; then steps 7 and 8 |
-| To offer a bounty, no review | the same + `skipExtractionReview: true` | The bounty posts when extraction completes; steps 7 and 8 |
+| To review the extraction, then offer a bounty | `"post_bounty"` + `creativeBrief` + `requestedBountyBudgetStar` | Step 3; the bounty posts on approval; then review the fulfiller's media on the bounty (step 7) |
+| To offer a bounty, no review | the same + `skipExtractionReview: true` | The bounty posts when extraction completes; review on the bounty (step 7) |
 | To decide after reading the extraction | no `requestedWorkStrategy` | Step 5 with any strategy, then the matching steps |
 | To decide after reviewing the extraction | no `requestedWorkStrategy` + `requestExtractionReview: true` | Step 3, step 5 before or after approval, then the matching steps |
 | To start attended, then hand everything to the platform | any attended body | Step 5 with `platform_default` before media production starts |
@@ -75,10 +75,10 @@ Every submission response (the submit `201`, the submission read, and the brief,
 | `extraction_review_required` | The pipeline paused for your review | Read the extraction; approve if `_quality.viable`, otherwise correct |
 | `strategy_required` | Extraction is done and no strategy applies | Choose a strategy (step 5) |
 | `media_upload_required` | `self_fulfill`: the manifest waits on your media | Steps 6 and 7 |
-| `bounty_fulfillment_pending` | `post_bounty`: the bounty is open | Wait for a fulfiller, then review (step 7) |
+| `bounty_fulfillment_pending` | `post_bounty`: the bounty is posted and waits on a fulfiller | Poll `GET .../fulfillment` until `submitted`, then review on the bounty (step 7) |
 | `media_production_running` | The platform is producing media | Poll |
 | `media_generation_stalled` | Platform media generation stalled | Inspect `GET .../fulfillment` |
-| `completion_required` | Attended media is accepted | Complete (step 8) |
+| `completion_required` | Your `self_fulfill` media is accepted | Complete (step 8) |
 | `registration_running` | The platform is finalizing and registering the story | Poll |
 | `rejected` | The submission was rejected | Read `rejection`; resubmit with a new `submissionId` if allowed |
 
@@ -93,11 +93,12 @@ Every submission response (the submit `201`, the submission read, and the brief,
 4. Set a brief (optional)     PUT  .../manifest/brief                 → before a strategy is selected
 5. Choose a strategy          POST .../manifest/strategy              → if you did not choose at submit, or to switch lanes
 6. Fulfill media (self)       GET .../manifest · POST .../media/staging/upload-url · POST .../media
-7. Review media               POST .../media/review                   → accepted | rejected
-8. Complete                   POST .../complete                       → finalized (attended only)
+7. Review media               POST .../media/review                   → accepted | rejected (self_fulfill)
+                              POST .../bounties/{bountyId}/review     → accept | revision_requested | reject (post_bounty)
+8. Complete                   POST .../complete                       → finalized (self_fulfill only)
 ```
 
-On the lazy lane, the platform produces the media and finalizes the submission itself; steps 6 through 8 are not yours, and step 3 is yours only with `requestExtractionReview`. Every run ends the same way: keep polling step 2 until `status` is `registered`.
+On the lazy lane, the platform produces the media and finalizes the submission itself; steps 6 through 8 are not yours, and step 3 is yours only with `requestExtractionReview`. With `post_bounty`, a bounty fulfiller produces the media, you review it on the bounty (step 7), and the platform finalizes the story: steps 6 and 8 are not yours. Every run ends the same way: keep polling step 2 until `status` is `registered`.
 
 ## Step 1 — Create and Publish (Submit the Narrative)
 
@@ -135,7 +136,7 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_
   -H "X-Api-Key: $API_KEY"
 ```
 
-A typical `status` progression is `accepted`, `published`, and `pipeline_running`, then `awaiting_extraction_review` or `extraction_complete`, then `manifest_issued`, `media_generating`, `media_fulfilled`, `finalized`, and `registered`, when the story is published and playable. On the lazy lane the status stays `extraction_complete` while the platform produces the media, then moves to `finalized` and `registered`; follow production on `GET .../fulfillment`. The response schema lists every value, including `rejected` and `correction_requested`. The response also carries `extractionReady`, `manifestReady`, `manifestItemCount`, `workflow`, `requestedWorkLastError` (set when a requested `post_bounty` could not be posted), and any rejection details. Poll about every ten seconds while `workflow.nextActions` includes `poll_submission`; extraction usually takes a couple of minutes. While `workflow.waitingOn` is `extraction`, the extraction read is partial, the manifest read answers `202` pending, and the fulfillment read reports `pending`. None of those is an error. When `workflow.waitingOn` is `creator`, `workflow.nextActions` lists what to call and `workflow.blockingReason` says why.
+A typical `status` progression is `accepted`, `published`, and `pipeline_running`, then `awaiting_extraction_review` or `extraction_complete`, then `manifest_issued`, `media_generating`, `media_fulfilled`, `finalized`, and `registered`, when the story is published and playable. On the lazy lane the status stays `extraction_complete` while the platform produces the media, then moves to `finalized` and `registered`; follow production on `GET .../fulfillment`. With `post_bounty` the status stays `manifest_issued` while the bounty waits on a fulfiller and your review, moves to `media_generating` once you accept a media set, then to `finalized` and `registered`; it never passes through `media_fulfilled`. The response schema lists every value, including `rejected` and `correction_requested`. The response also carries `extractionReady`, `manifestReady`, `manifestItemCount`, `workflow`, `requestedWorkLastError` (set when a requested `post_bounty` could not be posted), and any rejection details. Poll about every ten seconds while `workflow.nextActions` includes `poll_submission`; extraction usually takes a couple of minutes. While `workflow.waitingOn` is `extraction`, the extraction read is partial, the manifest read answers `202` pending, and the fulfillment read reports `pending`. None of those is an error. When `workflow.waitingOn` is `creator`, `workflow.nextActions` lists what to call and `workflow.blockingReason` says why.
 
 ## Step 3 — Read, Correct, or Approve the Extraction
 
@@ -184,7 +185,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
 | Strategy | Behavior |
 |----------|----------|
 | `self_fulfill` | You produce and upload the media yourself (steps 6 through 8). Choose this for full creative control over the images. |
-| `post_bounty` | The platform posts a marketplace `media_production` bounty, funded from your \$STAR into escrow, so another creator produces the images. Send `bountyBudgetStar` with it. |
+| `post_bounty` | The platform posts a marketplace `media_production` bounty, funded from your \$STAR into escrow, so another creator produces the images. Send `bountyBudgetStar` with it. You review their media on the bounty (step 7). If the bounty could not be posted, `workflow` lists `choose_strategy` with `post_bounty` alone; post it again. |
 | `platform_default` | The platform produces all remaining media and finalizes the story. On a running attended pipeline this hands production to the platform: at once if the work manifest is waiting on you, or on approval if the extraction is in review. |
 
 Once a strategy is selected it is permanent: choosing a different one later returns `409 ERR_STRATEGY_ALREADY_SET`. After media generation starts, any change returns `409 ERR_STRATEGY_SELECTION_CLOSED`. Posting the **same** strategy again is allowed, and is how you retry. A `207` with `pipelineWarning` means the strategy was saved but a follow-up failed: `PIPELINE_START_FAILED` (the pipeline did not start) or `STRATEGY_SELECTION_NOT_QUEUED` (the running pipeline was not told yet). Re-post the same strategy in either case.
@@ -234,9 +235,25 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
   -d '{ "decision": "accepted" }'
 ```
 
+### Bounty-fulfilled media (`post_bounty`)
+
+A bounty fulfiller's media set is reviewed on the bounty, not on the submission: `media/review` answers `409` for it. Poll the fulfillment read. Its `status` is `pending` while the bounty is open, `claimed` once a fulfiller claims it, and `submitted` when their set awaits your review; `marketplaceBountyId`, `claimId`, and `bountySubmissionId` name what to review.
+
+```bash
+curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/fulfillment \
+  -H "X-Api-Key: $API_KEY"
+# { "status": "submitted", "marketplaceBountyId": "<bountyId>", "claimId": "<claimId>", "bountySubmissionId": "<bounty submissionId>", … }
+
+curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/bounties/$BOUNTY_ID/review \
+  -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{ "claimId": "'"$CLAIM_ID"'", "submissionId": "'"$BOUNTY_SUBMISSION_ID"'", "decision": "accept" }'
+```
+
+`accept` finalizes the bounty and pays the fulfiller from escrow; the platform then finishes the story's media and registers it, with no `complete` call. `revision_requested` returns the set to the fulfiller and `reject` reopens the bounty; both require `feedback`, and the fulfillment read returns to `claimed` or `pending`.
+
 ## Step 8 — Complete
 
-Finalization binds your story, its extracted entities and settings, and its media into the world, settles any seed escrow, and seals the submission. It takes no body and is idempotent: an already finalized submission returns `200` with `alreadyFinalized: true`. It applies to `self_fulfill` and `post_bounty` submissions whose media was accepted, and `workflow.nextActions` lists `complete` only then. The platform finalizes `platform_default` submissions itself, and this call returns `409` for them. After `complete`, poll step 2 until `registered`.
+Finalization binds your story, its extracted entities and settings, and its media into the world, settles any seed escrow, and seals the submission. It takes no body and is idempotent: an already finalized submission returns `200` with `alreadyFinalized: true`. It applies to `self_fulfill` submissions whose media was accepted, and `workflow.nextActions` lists `complete` only then. The platform finalizes `platform_default` submissions itself, and this call returns `409` for them. A `post_bounty` story is finalized by the platform after you accept on the bounty; it never calls `complete`. After `complete`, poll step 2 until `registered`.
 
 ```bash
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/complete \
@@ -251,8 +268,8 @@ curl .../submit/$SUBMISSION_ID/manifest/status    # manifest status
 curl .../submit/$SUBMISSION_ID/fulfillment        # media fulfillment status (lazy lane: pending, generating, accepted, or failed)
 ```
 
-On the lazy lane, the fulfillment read reports `pending` until extraction completes and any requested review is approved, then `generating`, then `accepted` once media is done (or `failed` if generation stalls). It also carries the submission's `blockingReason`, so it agrees with `workflow`.
+On the lazy lane, the fulfillment read reports `pending` until extraction completes and any requested review is approved, then `generating`, then `accepted` once media is done (or `failed` if generation stalls). With `post_bounty` it reports the bounty: `pending` while open (never `claimed` before someone claims it), `claimed`, `submitted` while a set awaits your review, `accepted` once you accept, and `failed` if the bounty is cancelled or expires. It also carries the submission's `blockingReason`, so it agrees with `workflow`.
 
 ## Via MCP
 
-The same lifecycle is available as [MCP tools](/docs/mcp-reference/tools): `submit_narrative`, `get_extraction`, `get_work_manifest`, `set_manifest_strategy`, `submit_media_set`, and `complete_submission`. Approval, review, briefs, staging uploads, and reading the submission (polling) are HTTP-only.
+The same lifecycle is available as [MCP tools](/docs/mcp-reference/tools): `submit_narrative`, `get_extraction`, `get_work_manifest`, `set_manifest_strategy`, `submit_media_set`, and `complete_submission`, and `review_bounty` reviews a `post_bounty` fulfiller's set. Approval, `self_fulfill` media review, briefs, staging uploads, reading the submission (polling), and the fulfillment read are HTTP-only.

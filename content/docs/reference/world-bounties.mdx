@@ -2968,7 +2968,7 @@ description: "16 operations tagged world.bounties."
 
 `POST /api/v1/world/{worldId}/bounties/{bountyId}/review`
 
-**Accept, reject, or request revision on a bounty submission.** The issuer decides on the current submission. accept triggers automatic finalization and escrow release to the claimant, so the resulting status is finalized or registered; reject releases the claim and returns the bounty to open; revision_requested (alias request_revision) moves to revision_requested, or to open once maxRevisions is exceeded. feedback is required for non-accept decisions. The decision is recorded as a HAM turn under a per-bounty lock; if auto-finalization or apply fails after the decision commits, the call returns 502 even though the decision stands.
+**Accept, reject, or request revision on a bounty submission.** The issuer decides on the current submission. accept triggers automatic finalization and escrow release to the claimant, so the resulting status is finalized or registered; reject releases the claim and returns the bounty to open; revision_requested (alias request_revision) moves to revision_requested, or to open once maxRevisions is exceeded. feedback is required for non-accept decisions. For a story's media bounty (post_bounty), accept also resumes the story's pipeline: the narrative submission moves to media_generating and then registered, with no complete call. The decision is recorded as a HAM turn under a per-bounty lock; if auto-finalization or apply fails after the decision commits, the call returns 502 even though the decision stands.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
