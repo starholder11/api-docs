@@ -75,7 +75,7 @@ Every submission read carries a `workflow` object: the submit `201`, the submiss
 | `extraction_review_required` | The pipeline paused for your review | Read the extraction; approve if `_quality.viable`, otherwise correct |
 | `strategy_required` | Extraction is done and no strategy applies | Choose a strategy (step 5) |
 | `media_upload_required` | `self_fulfill`: the manifest waits on your media | Steps 6 and 7 |
-| `bounty_fulfillment_pending` | `post_bounty`: the bounty is posted and waits on a fulfiller | Poll `GET .../fulfillment` until `submitted`, then review on the bounty (step 7) |
+| `bounty_fulfillment_pending` | `post_bounty`: the bounty is posted and stays `open` until someone claims it; you may claim your own media bounty | Poll `GET .../fulfillment` until `submitted`, then review on the bounty (step 7) |
 | `media_production_running` | The platform is producing media | Poll |
 | `media_generation_stalled` | Platform media generation stalled | Inspect `GET .../fulfillment` |
 | `completion_required` | Your `self_fulfill` media is accepted | Complete (step 8) |
