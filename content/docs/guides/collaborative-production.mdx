@@ -51,7 +51,7 @@ A submission that fails validation is `rejected`. While media is being produced 
 
 **On the lazy lane (`platform_default`)**, progression is automatic — the platform drives the submission through extraction, media production, and finalization without requiring your input after the initial submit. The status stays `extraction_complete` while media is produced, then moves to `finalized` and `registered`. If you sent `requestExtractionReview: true`, it first pauses at `awaiting_extraction_review` until you approve.
 
-**On the attended lane (`self_fulfill` and `post_bounty`)**, you drive the lifecycle through the endpoints in the [Submission Lifecycle](/docs/guides/submission-lifecycle) guide. Every submission response includes a `workflow` object naming your lane, the extraction-review state, who the submission is waiting on, and the calls that are valid now.
+**On the attended lane (`self_fulfill` and `post_bounty`)**, you drive the lifecycle through the endpoints in the [Create and Publish a Story](/docs/guides/submission-lifecycle) guide. Every submission response includes a `workflow` object naming your lane, the extraction-review state, who the submission is waiting on, the one condition it is blocked on (`blockingReason`), and the calls that are valid now.
 
 ## What a Story Bundle Is
 
@@ -77,7 +77,7 @@ This is what makes a story a first-class citizen of the world. It's not just tex
 
 The work manifest — the structured plan of all media your story needs — can be fulfilled three ways. You choose with `requestedWorkStrategy` when you submit, and you can switch with `POST .../manifest/strategy` until media production starts; once a strategy is selected it is permanent. The platform-default path is the **lazy lane**: nothing pauses for you. The other two are the **attended lane**: the platform produces the extraction, graph, narration, and work manifest, then waits for media from you or a bounty fulfiller.
 
-On the attended lane you can also review the extraction before the manifest is built. That review is on by default; send `skipExtractionReview: true` to go straight to the manifest. On the lazy lane, or without a strategy, send `requestExtractionReview: true` to review first; with `platform_default`, approval then sends the story straight into platform production. If you submit without a strategy, you choose any of the three after reading the extraction. You can also start attended and hand everything to the platform with `platform_default` before media production starts; after that the call returns `409 ERR_STRATEGY_SELECTION_CLOSED`. The [Submission Lifecycle](/docs/guides/submission-lifecycle#changing-the-lane-while-the-pipeline-runs) guide covers every switch.
+On the attended lane you can also review the extraction before the manifest is built. That review is on by default; send `skipExtractionReview: true` to go straight to the manifest. On the lazy lane, or without a strategy, send `requestExtractionReview: true` to review first; with `platform_default`, approval then sends the story straight into platform production. If you submit without a strategy, you choose any of the three after reading the extraction. You can also start attended and hand everything to the platform with `platform_default` before media production starts; after that the call returns `409 ERR_STRATEGY_SELECTION_CLOSED`. The [Create and Publish a Story](/docs/guides/submission-lifecycle#changing-the-lane-while-the-pipeline-runs) guide covers every switch.
 
 ### Platform Default (`platform_default`)
 

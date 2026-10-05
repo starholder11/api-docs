@@ -662,7 +662,7 @@ Route [`direct_persona`](/docs/reference/world-execution#direct_persona); mutati
 
 ## submit_narrative
 
-Submit a narrative text contribution to a world and choose its production mode. requestedWorkStrategy platform_default is the lazy lane: the platform produces everything, media included; add requestExtractionReview true to review the extraction first. self_fulfill or post_bounty is the attended lane: the platform produces extraction, graph, and a work manifest, then media comes from you or a funded bounty, with an extraction review first unless skipExtractionReview is true. Until a strategy is selected you can still choose one, including platform_default, up to the start of media production; the response workflow lists the next valid calls.
+Create and publish a story: one call validates a narrative (title 3-500 characters, 50-50,000 words), publishes it into a world, and starts its production pipeline. contentHash is computed for you (SHA-256 of the trimmed text). requestedWorkStrategy decides production and is not asked again: platform_default is the lazy lane, where the platform produces everything, media included, and registers the story with no further calls (add requestExtractionReview true to review the extraction first). self_fulfill or post_bounty is the attended lane: the platform produces extraction, graph, and a work manifest, then media comes from you or a funded bounty, with an extraction review first unless skipExtractionReview is true. Omit it to choose later. The response workflow lists the next valid calls and the one blockingReason; the story.publish workflow on /.well-known/ham orders every step.
 
 Route [`narrative_submit`](/docs/reference/world-submit#narrative_submit_legacy); mutation class `bundle_submit`.
 
@@ -682,7 +682,8 @@ Route [`narrative_submit`](/docs/reference/world-submit#narrative_submit_legacy)
       "type": "string"
     },
     "narrativeText": {
-      "type": "string"
+      "type": "string",
+      "description": "50 to 50,000 whitespace-separated words after trimming."
     },
     "authorNotes": {
       "type": "string"

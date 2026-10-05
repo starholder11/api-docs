@@ -9,7 +9,7 @@ description: "15 operations tagged world.submit."
 
 `GET /api/v1/world/{worldId}/submit/{submissionId}`
 
-**Get a submission's lifecycle status.** Returns the public view of a narrative submission in the world: lifecycle status, fulfillment and deferred strategy, linked TextAsset/TextRoot/manifest/bounty ids, rejection details, extraction readiness (with the extraction URL), and status history, plus manifestReady and manifestItemCount from the persisted submission manifest or the linked marketplace bounty manifest. Internal fields (narrativeText, ownerUserId, retryCount, correctionHistory) are omitted. Returns 404 if the submission belongs to a different world. Read-only; intended for polling.
+**Get a submission's lifecycle status.** Returns the public view of a narrative submission in the world: lifecycle status, fulfillment and deferred strategy, linked TextAsset/TextRoot/manifest/bounty ids, rejection details, extraction readiness (with the extraction URL), and status history, plus manifestReady and manifestItemCount from the persisted submission manifest or the linked marketplace bounty manifest. Internal fields (narrativeText, ownerUserId, retryCount, correctionHistory) are omitted. Returns 404 if the submission belongs to a different world. workflow carries the next valid calls and the one blockingReason. Read-only; intended for polling.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
@@ -244,116 +244,8 @@ description: "15 operations tagged world.submit."
         "type": "boolean"
       },
       "workflow": {
-        "type": "object",
-        "description": "ECA §6.3 workflow view derived from the submission: production lane, extraction-review state, who the submission waits on, and the calls valid now.",
-        "required": [
-          "lane",
-          "strategy",
-          "strategySource",
-          "extractionReview",
-          "waitingOn",
-          "nextActions"
-        ],
-        "properties": {
-          "lane": {
-            "type": "string",
-            "enum": [
-              "lazy_lane",
-              "attended",
-              "undecided"
-            ],
-            "description": "lazy_lane for platform_default; attended for self_fulfill/post_bounty; undecided when no strategy is requested or selected."
-          },
-          "strategy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "platform_default",
-              "self_fulfill",
-              "post_bounty",
-              null
-            ],
-            "description": "fulfillmentStrategy ?? requestedWorkStrategy."
-          },
-          "strategySource": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "selected",
-              "requested",
-              null
-            ]
-          },
-          "extractionReview": {
-            "type": "string",
-            "enum": [
-              "not_applicable",
-              "pending",
-              "awaiting_creator",
-              "correction_in_progress",
-              "approved",
-              "skipped"
-            ]
-          },
-          "waitingOn": {
-            "type": "string",
-            "enum": [
-              "platform",
-              "creator",
-              "bounty_fulfillers",
-              "none"
-            ]
-          },
-          "nextActions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "action",
-                "method",
-                "path",
-                "description"
-              ],
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "description": "Stable id: get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
-                },
-                "method": {
-                  "type": "string",
-                  "enum": [
-                    "GET",
-                    "POST",
-                    "PUT"
-                  ]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Absolute API path for this submission."
-                },
-                "description": {
-                  "type": "string"
-                },
-                "allowedStrategies": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "platform_default",
-                      "self_fulfill",
-                      "post_bounty"
-                    ]
-                  },
-                  "description": "choose_strategy only: the strategies the submission can still take (ECA §6.2.3). The orchestrator refuses a selection once media production starts (ERR_STRATEGY_SELECTION_CLOSED)."
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       }
     }
   }
@@ -424,7 +316,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/[submissionId]/route.ts` (confidence: high).</sub>
 
@@ -1174,116 +1066,8 @@ description: "15 operations tagged world.submit."
         "type": "boolean"
       },
       "workflow": {
-        "type": "object",
-        "description": "ECA §6.3 workflow view derived from the submission: production lane, extraction-review state, who the submission waits on, and the calls valid now.",
-        "required": [
-          "lane",
-          "strategy",
-          "strategySource",
-          "extractionReview",
-          "waitingOn",
-          "nextActions"
-        ],
-        "properties": {
-          "lane": {
-            "type": "string",
-            "enum": [
-              "lazy_lane",
-              "attended",
-              "undecided"
-            ],
-            "description": "lazy_lane for platform_default; attended for self_fulfill/post_bounty; undecided when no strategy is requested or selected."
-          },
-          "strategy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "platform_default",
-              "self_fulfill",
-              "post_bounty",
-              null
-            ],
-            "description": "fulfillmentStrategy ?? requestedWorkStrategy."
-          },
-          "strategySource": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "selected",
-              "requested",
-              null
-            ]
-          },
-          "extractionReview": {
-            "type": "string",
-            "enum": [
-              "not_applicable",
-              "pending",
-              "awaiting_creator",
-              "correction_in_progress",
-              "approved",
-              "skipped"
-            ]
-          },
-          "waitingOn": {
-            "type": "string",
-            "enum": [
-              "platform",
-              "creator",
-              "bounty_fulfillers",
-              "none"
-            ]
-          },
-          "nextActions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "action",
-                "method",
-                "path",
-                "description"
-              ],
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "description": "Stable id: get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
-                },
-                "method": {
-                  "type": "string",
-                  "enum": [
-                    "GET",
-                    "POST",
-                    "PUT"
-                  ]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Absolute API path for this submission."
-                },
-                "description": {
-                  "type": "string"
-                },
-                "allowedStrategies": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "platform_default",
-                      "self_fulfill",
-                      "post_bounty"
-                    ]
-                  },
-                  "description": "choose_strategy only: the strategies the submission can still take (ECA §6.2.3). The orchestrator refuses a selection once media production starts (ERR_STRATEGY_SELECTION_CLOSED)."
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       }
     }
   }
@@ -1374,7 +1158,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/[submissionId]/extraction/approve/route.ts` (confidence: high).</sub>
 
@@ -1382,7 +1166,7 @@ description: "15 operations tagged world.submit."
 
 `GET /api/v1/world/{worldId}/submit/{submissionId}/fulfillment`
 
-**Get media fulfillment status for a submission.** Returns the fulfillment status surface for a submission: strategy, an aggregate status (pending, claimed, submitted, accepted, rejected, generating, failed), per-manifest-item rows with requirement, delivery spec, media URL and rejection reason, the review status, and the import result once media has been accepted. Derived from the persisted submission manifest and fulfillment records plus the submission status. Read-only.
+**Get media fulfillment status for a submission.** Returns the fulfillment status surface for a submission: strategy, an aggregate status (pending, claimed, submitted, accepted, rejected, generating, failed), per-manifest-item rows with requirement, delivery spec, media URL and rejection reason, the review status, and the import result once media has been accepted. For platform_default the status is pending until extraction completes (and any requested review is approved), generating during media production, accepted once media is done, and failed when generation stalls or the submission is rejected. blockingReason repeats the submission workflow's blocking reason so this read names the same blocker. Derived from the persisted submission manifest and fulfillment records plus the submission status. Read-only.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
@@ -1483,7 +1267,7 @@ description: "15 operations tagged world.submit."
 
 `GET /api/v1/world/{worldId}/submit/{submissionId}/manifest`
 
-**Get (or materialize) the media work manifest for a submission.** Returns the submission's media work manifest with internal graph-write placement details stripped (placement reduced to slotType, targetNodeLabel, targetNodeId). Prefers the persisted submission manifest, then the linked marketplace bounty manifest. If neither exists, this GET materializes a manifest from the extraction bundle and persists it as a side effect, so the first successful call may be slow and later calls return the stored copy. Returns 422 when materialization yields zero items (not persisted; retried on the next request).
+**Get (or materialize) the media work manifest for a submission.** Returns the submission's media work manifest with internal graph-write placement details stripped (placement reduced to slotType, targetNodeLabel, targetNodeId). Prefers the persisted submission manifest, then the linked marketplace bounty manifest. If neither exists, this GET materializes a manifest from the extraction bundle and persists it as a side effect, so the first successful call may be slow and later calls return the stored copy. While extraction is still running (workflow.waitingOn extraction) and no manifest exists, returns 202 with status pending, the submission's blockingReason, and Retry-After; poll again. After extraction, 422 ERR_MANIFEST_EMPTY means the extraction produced nothing that needs media (not persisted).
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 
@@ -1508,6 +1292,16 @@ description: "15 operations tagged world.submit."
   ```json
   {
     "$ref": "#/components/schemas/PublicWorkManifest"
+  }
+  ```
+
+- **202**: Extraction still running; no manifest exists yet. Not an error: read again after retryAfterMs. Response headers: Retry-After (seconds), X-Correlation-Id.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/PendingWorkManifestResponse"
   }
   ```
 
@@ -1556,7 +1350,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-- **409**: No persisted/linked manifest and no extraction bundle (submission has no textRootId) or bundle world mismatch. Error codes: `ERR_MANIFEST_NOT_READY`.
+- **409**: Extraction finished but no persisted/linked manifest and no extraction bundle (submission has no textRootId) or bundle world mismatch. Error codes: `ERR_MANIFEST_NOT_READY`.
 
   `application/json`
 
@@ -1566,7 +1360,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-- **422**: Materialized manifest has zero items. Error codes: `ERR_MANIFEST_EMPTY`.
+- **422**: Extraction completed but the materialized manifest has zero items. Error codes: `ERR_MANIFEST_EMPTY`.
 
   `application/json`
 
@@ -1596,7 +1390,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`PublicWorkManifest`](/docs/reference/schemas#publicworkmanifest)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`PendingWorkManifestResponse`](/docs/reference/schemas#pendingworkmanifestresponse), [`PublicWorkManifest`](/docs/reference/schemas#publicworkmanifest)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/[submissionId]/manifest/route.ts` (confidence: high).</sub>
 
@@ -1766,116 +1560,8 @@ description: "15 operations tagged world.submit."
         "type": "boolean"
       },
       "workflow": {
-        "type": "object",
-        "description": "ECA §6.3 workflow view derived from the submission: production lane, extraction-review state, who the submission waits on, and the calls valid now.",
-        "required": [
-          "lane",
-          "strategy",
-          "strategySource",
-          "extractionReview",
-          "waitingOn",
-          "nextActions"
-        ],
-        "properties": {
-          "lane": {
-            "type": "string",
-            "enum": [
-              "lazy_lane",
-              "attended",
-              "undecided"
-            ],
-            "description": "lazy_lane for platform_default; attended for self_fulfill/post_bounty; undecided when no strategy is requested or selected."
-          },
-          "strategy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "platform_default",
-              "self_fulfill",
-              "post_bounty",
-              null
-            ],
-            "description": "fulfillmentStrategy ?? requestedWorkStrategy."
-          },
-          "strategySource": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "selected",
-              "requested",
-              null
-            ]
-          },
-          "extractionReview": {
-            "type": "string",
-            "enum": [
-              "not_applicable",
-              "pending",
-              "awaiting_creator",
-              "correction_in_progress",
-              "approved",
-              "skipped"
-            ]
-          },
-          "waitingOn": {
-            "type": "string",
-            "enum": [
-              "platform",
-              "creator",
-              "bounty_fulfillers",
-              "none"
-            ]
-          },
-          "nextActions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "action",
-                "method",
-                "path",
-                "description"
-              ],
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "description": "Stable id: get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
-                },
-                "method": {
-                  "type": "string",
-                  "enum": [
-                    "GET",
-                    "POST",
-                    "PUT"
-                  ]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Absolute API path for this submission."
-                },
-                "description": {
-                  "type": "string"
-                },
-                "allowedStrategies": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "platform_default",
-                      "self_fulfill",
-                      "post_bounty"
-                    ]
-                  },
-                  "description": "choose_strategy only: the strategies the submission can still take (ECA §6.2.3). The orchestrator refuses a selection once media production starts (ERR_STRATEGY_SELECTION_CLOSED)."
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       }
     }
   }
@@ -1966,7 +1652,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/[submissionId]/manifest/brief/route.ts` (confidence: high).</sub>
 
@@ -2310,116 +1996,8 @@ description: "15 operations tagged world.submit."
         "type": "boolean"
       },
       "workflow": {
-        "type": "object",
-        "description": "ECA §6.3 workflow view derived from the submission: production lane, extraction-review state, who the submission waits on, and the calls valid now.",
-        "required": [
-          "lane",
-          "strategy",
-          "strategySource",
-          "extractionReview",
-          "waitingOn",
-          "nextActions"
-        ],
-        "properties": {
-          "lane": {
-            "type": "string",
-            "enum": [
-              "lazy_lane",
-              "attended",
-              "undecided"
-            ],
-            "description": "lazy_lane for platform_default; attended for self_fulfill/post_bounty; undecided when no strategy is requested or selected."
-          },
-          "strategy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "platform_default",
-              "self_fulfill",
-              "post_bounty",
-              null
-            ],
-            "description": "fulfillmentStrategy ?? requestedWorkStrategy."
-          },
-          "strategySource": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "selected",
-              "requested",
-              null
-            ]
-          },
-          "extractionReview": {
-            "type": "string",
-            "enum": [
-              "not_applicable",
-              "pending",
-              "awaiting_creator",
-              "correction_in_progress",
-              "approved",
-              "skipped"
-            ]
-          },
-          "waitingOn": {
-            "type": "string",
-            "enum": [
-              "platform",
-              "creator",
-              "bounty_fulfillers",
-              "none"
-            ]
-          },
-          "nextActions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "action",
-                "method",
-                "path",
-                "description"
-              ],
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "description": "Stable id: get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
-                },
-                "method": {
-                  "type": "string",
-                  "enum": [
-                    "GET",
-                    "POST",
-                    "PUT"
-                  ]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Absolute API path for this submission."
-                },
-                "description": {
-                  "type": "string"
-                },
-                "allowedStrategies": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "platform_default",
-                      "self_fulfill",
-                      "post_bounty"
-                    ]
-                  },
-                  "description": "choose_strategy only: the strategies the submission can still take (ECA §6.2.3). The orchestrator refuses a selection once media production starts (ERR_STRATEGY_SELECTION_CLOSED)."
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       }
     }
   }
@@ -2569,7 +2147,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/[submissionId]/manifest/strategy/route.ts` (confidence: medium).</sub>
 
@@ -3296,7 +2874,7 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/{worldId}/submit/narrative`
 
-**Submit a narrative into a world for extraction.** Validates a narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset in the path world and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed as a revision). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Poll GET .../submit/\{submissionId\} for lifecycle progress.
+**Create and publish a story: submit a narrative and start its production pipeline.** Creates and publishes a story in one call: validates the narrative, publishes it as a TextAsset in the path world, and starts its production pipeline. There is no separate create or publish operation. Required: submissionId (client-chosen idempotency key), title (3 to 500 characters), narrativeText (50 to 50,000 whitespace-separated words after trimming; 49 is rejected), contentHash (lowercase hex SHA-256 of the UTF-8 trimmed narrativeText), and originSystem. requestedWorkStrategy (platform_default | self_fulfill | post_bounty) decides how media is produced; sending it is the decision, and the response workflow does not ask for a strategy again. The 201 workflow lists the next calls and the one blockingReason; the story.publish workflow on /.well-known/ham orders every step. Validates a narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset in the path world and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed as a revision). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Poll GET .../submit/\{submissionId\} for lifecycle progress.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
 
@@ -3477,116 +3055,8 @@ description: "15 operations tagged world.submit."
         "type": "boolean"
       },
       "workflow": {
-        "type": "object",
-        "description": "ECA §6.3 workflow view derived from the submission: production lane, extraction-review state, who the submission waits on, and the calls valid now.",
-        "required": [
-          "lane",
-          "strategy",
-          "strategySource",
-          "extractionReview",
-          "waitingOn",
-          "nextActions"
-        ],
-        "properties": {
-          "lane": {
-            "type": "string",
-            "enum": [
-              "lazy_lane",
-              "attended",
-              "undecided"
-            ],
-            "description": "lazy_lane for platform_default; attended for self_fulfill/post_bounty; undecided when no strategy is requested or selected."
-          },
-          "strategy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "platform_default",
-              "self_fulfill",
-              "post_bounty",
-              null
-            ],
-            "description": "fulfillmentStrategy ?? requestedWorkStrategy."
-          },
-          "strategySource": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "selected",
-              "requested",
-              null
-            ]
-          },
-          "extractionReview": {
-            "type": "string",
-            "enum": [
-              "not_applicable",
-              "pending",
-              "awaiting_creator",
-              "correction_in_progress",
-              "approved",
-              "skipped"
-            ]
-          },
-          "waitingOn": {
-            "type": "string",
-            "enum": [
-              "platform",
-              "creator",
-              "bounty_fulfillers",
-              "none"
-            ]
-          },
-          "nextActions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "action",
-                "method",
-                "path",
-                "description"
-              ],
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "description": "Stable id: get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
-                },
-                "method": {
-                  "type": "string",
-                  "enum": [
-                    "GET",
-                    "POST",
-                    "PUT"
-                  ]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Absolute API path for this submission."
-                },
-                "description": {
-                  "type": "string"
-                },
-                "allowedStrategies": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "platform_default",
-                      "self_fulfill",
-                      "post_bounty"
-                    ]
-                  },
-                  "description": "choose_strategy only: the strategies the submission can still take (ECA §6.2.3). The orchestrator refuses a selection once media production starts (ERR_STRATEGY_SELECTION_CLOSED)."
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       }
     }
   }
@@ -3735,7 +3205,7 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/submit/narrative/route.ts` (confidence: high).</sub>
 
@@ -3743,7 +3213,7 @@ description: "15 operations tagged world.submit."
 
 `POST /api/v1/world/submit/narrative` **Deprecated** (legacy alias).
 
-**Submit a narrative for extraction (legacy body-scoped alias).** Legacy alias of the path-scoped narrative submission: the target world comes from body.worldId and defaults to the bootstrap world (BOOTSTRAP_WORLD_ID in the route file) when omitted. Validates the narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Like the path-scoped route, it honors skipExtractionReview and requestExtractionReview.
+**Deprecated: create and publish a story in body.worldId or the bootstrap world (use narrative_submit).** Deprecated. Use POST /api/v1/world/\{worldId\}/submit/narrative (narrative_submit), which names the world in the path. This alias takes the world from body.worldId and silently targets the bootstrap world (BOOTSTRAP_WORLD_ID in the route file) when it is omitted. Validates the narrative (quality floor, SHA-256 provenance hash, 24h content-hash dedupe, coherence, low-quality-generation and content-safety checks), runs a governance gate, then publishes it as a TextAsset and starts the extraction pipeline. Idempotent on the client-chosen submissionId: re-posting an existing submissionId returns the stored outcome without re-validating (unless the submission is in correction_requested, in which case the narrative is re-processed). Each call consumes the caller's daily narrative-submission quota before the idempotency check. Like the path-scoped route, it honors skipExtractionReview and requestExtractionReview.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`.
 
@@ -3923,116 +3393,8 @@ description: "15 operations tagged world.submit."
         "type": "boolean"
       },
       "workflow": {
-        "type": "object",
-        "description": "ECA §6.3 workflow view derived from the submission: production lane, extraction-review state, who the submission waits on, and the calls valid now.",
-        "required": [
-          "lane",
-          "strategy",
-          "strategySource",
-          "extractionReview",
-          "waitingOn",
-          "nextActions"
-        ],
-        "properties": {
-          "lane": {
-            "type": "string",
-            "enum": [
-              "lazy_lane",
-              "attended",
-              "undecided"
-            ],
-            "description": "lazy_lane for platform_default; attended for self_fulfill/post_bounty; undecided when no strategy is requested or selected."
-          },
-          "strategy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "platform_default",
-              "self_fulfill",
-              "post_bounty",
-              null
-            ],
-            "description": "fulfillmentStrategy ?? requestedWorkStrategy."
-          },
-          "strategySource": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "selected",
-              "requested",
-              null
-            ]
-          },
-          "extractionReview": {
-            "type": "string",
-            "enum": [
-              "not_applicable",
-              "pending",
-              "awaiting_creator",
-              "correction_in_progress",
-              "approved",
-              "skipped"
-            ]
-          },
-          "waitingOn": {
-            "type": "string",
-            "enum": [
-              "platform",
-              "creator",
-              "bounty_fulfillers",
-              "none"
-            ]
-          },
-          "nextActions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "action",
-                "method",
-                "path",
-                "description"
-              ],
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "description": "Stable id: get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
-                },
-                "method": {
-                  "type": "string",
-                  "enum": [
-                    "GET",
-                    "POST",
-                    "PUT"
-                  ]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Absolute API path for this submission."
-                },
-                "description": {
-                  "type": "string"
-                },
-                "allowedStrategies": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "platform_default",
-                      "self_fulfill",
-                      "post_bounty"
-                    ]
-                  },
-                  "description": "choose_strategy only: the strategies the submission can still take (ECA §6.2.3). The orchestrator refuses a selection once media production starts (ERR_STRATEGY_SELECTION_CLOSED)."
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       }
     }
   }
@@ -4252,6 +3614,6 @@ description: "15 operations tagged world.submit."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/submit/narrative/route.ts` (confidence: high).</sub>

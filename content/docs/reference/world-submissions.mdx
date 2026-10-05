@@ -244,116 +244,8 @@ description: "2 operations tagged world.submissions."
         "type": "boolean"
       },
       "workflow": {
-        "type": "object",
-        "description": "ECA §6.3 workflow view derived from the submission: production lane, extraction-review state, who the submission waits on, and the calls valid now.",
-        "required": [
-          "lane",
-          "strategy",
-          "strategySource",
-          "extractionReview",
-          "waitingOn",
-          "nextActions"
-        ],
-        "properties": {
-          "lane": {
-            "type": "string",
-            "enum": [
-              "lazy_lane",
-              "attended",
-              "undecided"
-            ],
-            "description": "lazy_lane for platform_default; attended for self_fulfill/post_bounty; undecided when no strategy is requested or selected."
-          },
-          "strategy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "platform_default",
-              "self_fulfill",
-              "post_bounty",
-              null
-            ],
-            "description": "fulfillmentStrategy ?? requestedWorkStrategy."
-          },
-          "strategySource": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "selected",
-              "requested",
-              null
-            ]
-          },
-          "extractionReview": {
-            "type": "string",
-            "enum": [
-              "not_applicable",
-              "pending",
-              "awaiting_creator",
-              "correction_in_progress",
-              "approved",
-              "skipped"
-            ]
-          },
-          "waitingOn": {
-            "type": "string",
-            "enum": [
-              "platform",
-              "creator",
-              "bounty_fulfillers",
-              "none"
-            ]
-          },
-          "nextActions": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "action",
-                "method",
-                "path",
-                "description"
-              ],
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "description": "Stable id: get_extraction, submit_correction, approve_extraction, set_brief, choose_strategy, get_manifest, get_manifest_status, request_upload_url, submit_media, review_media, get_fulfillment, complete."
-                },
-                "method": {
-                  "type": "string",
-                  "enum": [
-                    "GET",
-                    "POST",
-                    "PUT"
-                  ]
-                },
-                "path": {
-                  "type": "string",
-                  "description": "Absolute API path for this submission."
-                },
-                "description": {
-                  "type": "string"
-                },
-                "allowedStrategies": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "platform_default",
-                      "self_fulfill",
-                      "post_bounty"
-                    ]
-                  },
-                  "description": "choose_strategy only: the strategies the submission can still take (ECA §6.2.3). The orchestrator refuses a selection once media production starts (ERR_STRATEGY_SELECTION_CLOSED)."
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/components/schemas/SubmissionWorkflowView",
+        "description": "ECA §6.3 workflow contract: lane, review state, who the submission waits on, the one blockingReason, and the calls valid now. An empty nextActions means terminal."
       }
     }
   }
@@ -440,7 +332,7 @@ description: "2 operations tagged world.submissions."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`ApiErrorEnvelope`](/docs/reference/schemas#apierrorenvelope), [`SubmissionWorkflowView`](/docs/reference/schemas#submissionworkflowview)
 
 <sub>Contract authored from `app/api/v1/world/submissions/[id]/route.ts` (confidence: high).</sub>
 

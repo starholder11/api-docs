@@ -9,7 +9,7 @@ description: "3 operations tagged discovery."
 
 `GET /.well-known/ham`
 
-**Get the HAM discovery document.** The public entry point for agents (HAM §45.1). Points at this OpenAPI document, the credential-scoped caller directory (GET /api/v1/account), the room directory carried by a room link, and the MCP endpoint. Identical at /.well-known/ham. Public, no credential, cacheable for 300 seconds.
+**Get the HAM discovery document.** The public entry point for agents (HAM §45.1). Points at this OpenAPI document, the credential-scoped caller directory (GET /api/v1/account), the room directory carried by a room link, and the MCP endpoint, and lists workflow recipes such as story.publish (create and publish a story) as ordered steps over these operations (AES §8.10.7). Identical at /.well-known/ham. Public, no credential, cacheable for 300 seconds.
 
 **Credentials.** None. This document is public.
 
@@ -26,7 +26,8 @@ description: "3 operations tagged discovery."
       "schema",
       "discoveryVersion",
       "extensions",
-      "directories"
+      "directories",
+      "workflows"
     ],
     "properties": {
       "schema": {
@@ -82,6 +83,13 @@ description: "3 operations tagged discovery."
           }
         }
       },
+      "workflows": {
+        "type": "array",
+        "description": "AES §8.10.7 workflow recipes: ordered steps naming registry operations.",
+        "items": {
+          "$ref": "#/components/schemas/AgentWorkflow"
+        }
+      },
       "links": {
         "type": "object"
       }
@@ -124,7 +132,7 @@ description: "3 operations tagged discovery."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`AgentWorkflow`](/docs/reference/schemas#agentworkflow)
 
 <sub>Contract authored from `app/api/v1/ham/.well-known/ham/route.ts` (confidence: high).</sub>
 
@@ -132,7 +140,7 @@ description: "3 operations tagged discovery."
 
 `GET /api/v1/ham/.well-known/ham`
 
-**Get the HAM discovery document.** The public entry point for agents (HAM §45.1). Points at this OpenAPI document, the credential-scoped caller directory (GET /api/v1/account), the room directory carried by a room link, and the MCP endpoint. Identical at /.well-known/ham. Public, no credential, cacheable for 300 seconds.
+**Get the HAM discovery document.** The public entry point for agents (HAM §45.1). Points at this OpenAPI document, the credential-scoped caller directory (GET /api/v1/account), the room directory carried by a room link, and the MCP endpoint, and lists workflow recipes such as story.publish (create and publish a story) as ordered steps over these operations (AES §8.10.7). Identical at /.well-known/ham. Public, no credential, cacheable for 300 seconds.
 
 **Credentials.** None. This document is public.
 
@@ -149,7 +157,8 @@ description: "3 operations tagged discovery."
       "schema",
       "discoveryVersion",
       "extensions",
-      "directories"
+      "directories",
+      "workflows"
     ],
     "properties": {
       "schema": {
@@ -205,6 +214,13 @@ description: "3 operations tagged discovery."
           }
         }
       },
+      "workflows": {
+        "type": "array",
+        "description": "AES §8.10.7 workflow recipes: ordered steps naming registry operations.",
+        "items": {
+          "$ref": "#/components/schemas/AgentWorkflow"
+        }
+      },
       "links": {
         "type": "object"
       }
@@ -247,7 +263,7 @@ description: "3 operations tagged discovery."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated)
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`AgentWorkflow`](/docs/reference/schemas#agentworkflow)
 
 <sub>Contract authored from `app/api/v1/ham/.well-known/ham/route.ts` (confidence: high).</sub>
 

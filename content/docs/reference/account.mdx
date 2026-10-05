@@ -9,7 +9,7 @@ description: "7 operations tagged account."
 
 `GET /api/v1/account`
 
-**Get the caller's account profile, credential view, and directory.** Resolves the caller through AuthBoundaryDispatcher (session headers, Bearer/x-api-key API key, or persona token), then authorizes against the account_get registry policy. Returns the owner userId, tenantId, the number of worlds the owner can access, a CallerCredentialView of the presented credential, and a CallerDirectory listing /api/v1 operations that pass credential-level gates for this caller. activeKeyCount is present only for human sessions. Read-only.
+**Get the caller's account profile, credential view, and directory.** Resolves the caller through AuthBoundaryDispatcher (session headers, Bearer/x-api-key API key, or persona token), then authorizes against the account_get registry policy. Returns the owner userId, tenantId, the number of worlds the owner can access, a CallerCredentialView of the presented credential, and a CallerDirectory listing /api/v1 operations that pass credential-level gates for this caller, plus the published workflows (story.publish) with each step marked callable for this credential. activeKeyCount is present only for human sessions. Read-only.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session.
 

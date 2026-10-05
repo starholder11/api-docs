@@ -1,11 +1,15 @@
 ---
-title: Submission Lifecycle
-description: End-to-end guide for submitting narratives, managing extraction, fulfilling media, and completing the pipeline.
+title: Create and Publish a Story
+description: End-to-end guide to creating and publishing a story — one submit call, then extraction, media production, and registration — and the submission lifecycle behind it.
 ---
 
-This guide walks through the complete submission lifecycle — the process by which stories enter the world. External creators write narratives, the platform analyzes them to extract world objects (entities, settings, relationships, scenes), generates a media plan listing the images that need to be produced, and then integrates everything into the knowledge graph. This pipeline exists so that every story added to the world is structurally consistent, richly linked, and accompanied by visual media.
+This guide walks through creating and publishing a story, and the submission lifecycle behind it. External creators write narratives, the platform analyzes them to extract world objects (entities, settings, relationships, scenes), generates a media plan listing the images that need to be produced, and then integrates everything into the knowledge graph. This pipeline exists so that every story added to the world is structurally consistent, richly linked, and accompanied by visual media.
 
-Every request below is a `world.submit` operation; the [Operation Reference](/docs/reference/world-submit) has the full schemas. All of them take your key in `X-Api-Key` (or `Authorization: Bearer`). They are shown against `starholder_main`; use any world your key may write to.
+**Creating, publishing, and starting the pipeline are one call:** `POST /api/v1/world/{worldId}/submit/narrative` (`narrative_submit`). There is no separate create or publish operation. The same recipe is published for agents as the `story.publish` workflow in [`/.well-known/ham`](/docs/discovery#4-workflows-whole-tasks), with every step's method, path, body rules, and the response that means "go on".
+
+Every request below is a `world.submit` operation; the [Operation Reference](/docs/reference/world-submit) has the full schemas. All of them take your key in `X-Api-Key` (or `Authorization: Bearer`). They are shown against `starholder_main`; use a world whose publication policy admits you. An unknown world returns `404 ERR_PUBLISH_TARGET_NOT_FOUND`, and a world that denies you returns `403 ERR_WORLD_PUBLICATION_DENIED` with the reason in `error.details`.
+
+The body-scoped `POST /api/v1/world/submit/narrative` (`narrative_submit_legacy`) is **deprecated**. It publishes into `body.worldId`, or into the bootstrap world when `worldId` is missing, which is rarely what you meant. Use the path-scoped route.
 
 ## Choose a Production Mode First
 
@@ -16,7 +20,7 @@ You decide how much of the story the platform produces **when you submit**, with
 
 | You want | Send at submit | You do afterwards |
 |----------|----------------|-------------------|
-| The platform to produce everything | `requestedWorkStrategy: "platform_default"` (optional `creativeBrief`) | Nothing; watch `GET .../fulfillment` |
+| The platform to produce everything | `requestedWorkStrategy: "platform_default"` (optional `creativeBrief`) | Nothing; poll the submission until `registered` (step 2) |
 | To review the extraction, then have the platform produce everything | `"platform_default"` + `requestExtractionReview: true` | Step 3; approval starts platform production; watch `GET .../fulfillment` |
 | To review the extraction, then make the media yourself | `requestedWorkStrategy: "self_fulfill"` | Steps 3, 6, 7, 8 |
 | To make the media yourself, no review | `"self_fulfill"` + `skipExtractionReview: true` | Steps 6, 7, 8 |
@@ -36,9 +40,13 @@ The lane is not fixed when the pipeline starts. Until media production starts, `
 - **Platform to attended.** On the lazy lane, choose `self_fulfill` while extraction runs. With `requestExtractionReview`, you can choose `self_fulfill` or `post_bounty` any time until you approve. The pipeline then pauses for review (unless you skipped it or it is done) and waits on the work manifest. Without review, `platform_default` becomes final when extraction completes, and an unreviewed lazy-lane submission cannot switch to a bounty, because a bounty needs the extraction.
 - **Undecided to any.** With no strategy at submit, choose any of the three after extraction.
 
-Two rules bound the switch. Once media generation has started, or fulfillment is complete, the call returns `409 ERR_STRATEGY_SELECTION_CLOSED` and nothing changes. And a strategy that has been *selected* (`fulfillmentStrategy` is set, either by step 5 or when the platform applies `requestedWorkStrategy`) cannot be replaced: a different one returns `409 ERR_STRATEGY_ALREADY_SET`. `workflow.nextActions` offers `choose_strategy` exactly while a switch is possible, and its `allowedStrategies` lists the choices.
+Two rules bound the switch. Once media generation has started, or fulfillment is complete, the call returns `409 ERR_STRATEGY_SELECTION_CLOSED` and nothing changes. And a strategy that has been *selected* (`fulfillmentStrategy` is set, either by step 5 or when the platform applies `requestedWorkStrategy`) cannot be replaced: a different one returns `409 ERR_STRATEGY_ALREADY_SET`.
 
-Every submission response carries a `workflow` object that states your lane, where review stands, who the submission is waiting on, and the exact calls that are valid now:
+A switch is something you decide to do, not a step every submission takes. `workflow.nextActions` offers `choose_strategy` only while no strategy is decided, and a strategy you requested at submit is the decision: the workflow does not ask you to choose it again. To switch, call step 5 directly while the rules above allow it. The one exception is a requested `post_bounty` that could not be applied; then `choose_strategy` returns with all three strategies in `allowedStrategies`.
+
+### The `workflow` object
+
+Every submission response (the submit `201`, the submission read, and the brief, strategy, and approve responses) carries a `workflow` object. It states your lane, where review stands, the one condition the submission is waiting on, and the exact calls that are valid now:
 
 ```json
 {
@@ -47,6 +55,10 @@ Every submission response carries a `workflow` object that states your lane, whe
   "strategySource": "requested",
   "extractionReview": "awaiting_creator",
   "waitingOn": "creator",
+  "blockingReason": {
+    "code": "extraction_review_required",
+    "description": "Review the extraction. Approve it when _quality.viable is true; otherwise request corrections."
+  },
   "nextActions": [
     { "action": "get_extraction", "method": "GET", "path": "/api/v1/world/starholder_main/submit/sub_…/extraction", "description": "…" },
     { "action": "submit_correction", "method": "POST", "path": "…/correction", "description": "…" },
@@ -55,26 +67,48 @@ Every submission response carries a `workflow` object that states your lane, whe
 }
 ```
 
-An agent can follow `workflow.nextActions` instead of re-deriving the rules below.
+`workflow` is the contract: follow `nextActions` instead of re-deriving the rules below. `waitingOn` says who must act: `extraction`, `platform`, `creator` (you), `bounty_fulfillers`, or `none`. `blockingReason` says what that is. When the other surfaces look inconsistent, for example a partial extraction during `pipeline_running`, it is the one to trust:
+
+| `blockingReason.code` | Meaning | What you do |
+|---|---|---|
+| `extraction_running` | Extraction (or re-extraction after corrections) is still running | Poll; optional brief or strategy calls are listed |
+| `extraction_review_required` | The pipeline paused for your review | Read the extraction; approve if `_quality.viable`, otherwise correct |
+| `strategy_required` | Extraction is done and no strategy applies | Choose a strategy (step 5) |
+| `media_upload_required` | `self_fulfill`: the manifest waits on your media | Steps 6 and 7 |
+| `bounty_fulfillment_pending` | `post_bounty`: the bounty is open | Wait for a fulfiller, then review (step 7) |
+| `media_production_running` | The platform is producing media | Poll |
+| `media_generation_stalled` | Platform media generation stalled | Inspect `GET .../fulfillment` |
+| `completion_required` | Attended media is accepted | Complete (step 8) |
+| `registration_running` | The platform is finalizing and registering the story | Poll |
+| `rejected` | The submission was rejected | Read `rejection`; resubmit with a new `submissionId` if allowed |
+
+`blockingReason` is `null` once the story is `registered`. While the submission waits on extraction or the platform, `nextActions` includes `poll_submission`: read the submission again in about ten seconds. An empty `nextActions` means the submission is done.
 
 ## Overview
 
 ```
-1. Submit narrative           POST .../submit/narrative               → 201 accepted_for_extraction (+ production mode)
-2. Poll the submission        GET  .../submit/{submissionId}          → status + workflow.nextActions
+1. Create and publish         POST .../submit/narrative               → 201 accepted_for_extraction (+ production mode)
+2. Poll the submission        GET  .../submit/{submissionId}          → status + workflow (until registered)
 3. Read, correct, or approve  GET  .../extraction  ·  POST .../correction  ·  POST .../extraction/approve
 4. Set a brief (optional)     PUT  .../manifest/brief                 → before a strategy is selected
 5. Choose a strategy          POST .../manifest/strategy              → if you did not choose at submit, or to switch lanes
 6. Fulfill media (self)       GET .../manifest · POST .../media/staging/upload-url · POST .../media
 7. Review media               POST .../media/review                   → accepted | rejected
-8. Complete                   POST .../complete                       → finalized
+8. Complete                   POST .../complete                       → finalized (attended only)
 ```
 
-On the lazy lane, the platform produces the media and finalizes the submission itself; steps 6 through 8 are not yours, and step 3 is yours only with `requestExtractionReview`.
+On the lazy lane, the platform produces the media and finalizes the submission itself; steps 6 through 8 are not yours, and step 3 is yours only with `requestExtractionReview`. Every run ends the same way: keep polling step 2 until `status` is `registered`.
 
-## Step 1 — Submit Narrative
+## Step 1 — Create and Publish (Submit the Narrative)
 
-`submissionId` is yours to choose and is the idempotency key: posting the same id again returns the stored outcome. `contentHash` is the lowercase hex SHA-256 of the **trimmed** `narrativeText`.
+This one call creates the story, publishes it into the world as a text asset, and starts its production pipeline. The body rules the route enforces:
+
+- `submissionId`: yours to choose, and the idempotency key. Posting the same id again returns the stored outcome.
+- `title`: 3 to 500 characters after trimming.
+- `narrativeText`: 50 to 50,000 whitespace-separated words after trimming. 49 words is rejected.
+- `contentHash`: the lowercase hex SHA-256 of the UTF-8 bytes of the **trimmed** `narrativeText`. A hash already submitted within the last 24 hours is rejected as a duplicate.
+- `originSystem`: a non-empty name for your agent or system.
+- `requestedWorkStrategy` (optional): `platform_default`, `self_fulfill`, or `post_bounty`. Sending it is the strategy decision.
 
 ```bash
 SUBMISSION_ID="sub_$(uuidgen | tr 'A-Z' 'a-z')"
@@ -90,7 +124,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narr
 
 (The `sed` trim handles single-line text; for multi-line text, trim leading and trailing whitespace in your own code before hashing.)
 
-The production-mode fields are `requestedWorkStrategy` (`platform_default`, `self_fulfill`, or `post_bounty`), `creativeBrief`, `requestedBountyBudgetStar` (a decimal string or number; required with `post_bounty`), `skipExtractionReview`, and `requestExtractionReview`. The platform applies the requested strategy when extraction completes, or when you approve the extraction if it paused for review.
+The production-mode fields are `requestedWorkStrategy` (`platform_default`, `self_fulfill`, or `post_bounty`), `creativeBrief`, `requestedBountyBudgetStar` (a decimal string or number; required with `post_bounty`), `skipExtractionReview`, and `requestExtractionReview`. The platform applies the requested strategy when extraction completes, or when you approve the extraction if it paused for review. Until then `workflow.strategySource` is `requested`, and the workflow treats the strategy as decided: it does not list `choose_strategy`.
 
 **Response (201):** `{ submissionId, status: "accepted_for_extraction", estimatedExtractionTimeMs, fulfillmentStrategy, requestedWorkStrategy, skipExtractionReview, requestExtractionReview, workflow, textAssetId?, textRootId? }`. The narrative first passes the quality floor, the 24-hour duplicate check, coherence, content-safety, and governance checks. A rejection is a `422` with a structured reason; see [Collaborative Production](/docs/guides/collaborative-production) for what the gates look for. Each call counts against your daily narrative-submission quota, replays included.
 
@@ -101,7 +135,7 @@ curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_
   -H "X-Api-Key: $API_KEY"
 ```
 
-A typical `status` progression is `accepted`, `published`, and `pipeline_running`, then `awaiting_extraction_review` or `extraction_complete`, then `manifest_issued`, `media_generating`, `media_fulfilled`, and `finalized`. On the lazy lane the status stays `extraction_complete` while the platform produces the media, then moves to `finalized` and `registered`; follow production on `GET .../fulfillment`. The response schema lists every value, including `rejected` and `correction_requested`. The response also carries `extractionReady`, `manifestReady`, `manifestItemCount`, `workflow`, `requestedWorkLastError` (set when a requested `post_bounty` could not be posted), and any rejection details. Poll every few seconds; extraction usually takes a couple of minutes. When `workflow.waitingOn` is `creator`, `workflow.nextActions` lists what to call.
+A typical `status` progression is `accepted`, `published`, and `pipeline_running`, then `awaiting_extraction_review` or `extraction_complete`, then `manifest_issued`, `media_generating`, `media_fulfilled`, `finalized`, and `registered`, when the story is published and playable. On the lazy lane the status stays `extraction_complete` while the platform produces the media, then moves to `finalized` and `registered`; follow production on `GET .../fulfillment`. The response schema lists every value, including `rejected` and `correction_requested`. The response also carries `extractionReady`, `manifestReady`, `manifestItemCount`, `workflow`, `requestedWorkLastError` (set when a requested `post_bounty` could not be posted), and any rejection details. Poll about every ten seconds while `workflow.nextActions` includes `poll_submission`; extraction usually takes a couple of minutes. While `workflow.waitingOn` is `extraction`, the extraction read is partial, the manifest read answers `202` pending, and the fulfillment read reports `pending`. None of those is an error. When `workflow.waitingOn` is `creator`, `workflow.nextActions` lists what to call and `workflow.blockingReason` says why.
 
 ## Step 3 — Read, Correct, or Approve the Extraction
 
@@ -139,7 +173,7 @@ curl -X PUT https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBM
 
 ## Step 5 — Choose a Fulfillment Strategy
 
-Skip this step if you sent `requestedWorkStrategy` at submit and want to keep it. Use it when you deferred the choice until after reading the extraction, to switch lanes while the pipeline runs ([Changing the Lane](#changing-the-lane-while-the-pipeline-runs)), or to retry a requested `post_bounty` that `requestedWorkLastError` reports as failed. `workflow.nextActions` contains `choose_strategy` whenever this call can succeed.
+Skip this step if you sent `requestedWorkStrategy` at submit and want to keep it. Use it when you deferred the choice until after reading the extraction, to switch lanes while the pipeline runs ([Changing the Lane](#changing-the-lane-while-the-pipeline-runs)), or to retry a requested `post_bounty` that `requestedWorkLastError` reports as failed. `workflow.nextActions` lists `choose_strategy` when a decision is needed; a lane switch is a call you make without being prompted.
 
 ```bash
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/manifest/strategy \
@@ -163,6 +197,8 @@ Read the work manifest to see what is needed. Each item is one specific image (o
 curl https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/manifest \
   -H "X-Api-Key: $API_KEY"
 ```
+
+While extraction is still running the manifest read returns `202` with `{ status: "pending", submissionStatus, blockingReason, retryAfterMs }` and a `Retry-After: 10` header; wait and read again. `422 ERR_MANIFEST_EMPTY` comes only after extraction finished and found nothing to illustrate; `GET .../extraction` reports why in `_quality`.
 
 For each item, request a staging URL. The content type must match the item's delivery spec: images are png, jpeg, or webp up to 25 MB, and videos are mp4 or webm up to 400 MB. Then `PUT` the bytes to `uploadUrl` within 15 minutes, with the same `Content-Type`:
 
@@ -200,7 +236,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
 
 ## Step 8 — Complete
 
-Finalization binds your story, its extracted entities and settings, and its media into the world, settles any seed escrow, and seals the submission. It takes no body and is idempotent: an already finalized submission returns `200` with `alreadyFinalized: true`. It applies to `self_fulfill` and `post_bounty` submissions whose media was accepted; the platform finalizes `platform_default` submissions itself.
+Finalization binds your story, its extracted entities and settings, and its media into the world, settles any seed escrow, and seals the submission. It takes no body and is idempotent: an already finalized submission returns `200` with `alreadyFinalized: true`. It applies to `self_fulfill` and `post_bounty` submissions whose media was accepted, and `workflow.nextActions` lists `complete` only then. The platform finalizes `platform_default` submissions itself, and this call returns `409` for them. After `complete`, poll step 2 until `registered`.
 
 ```bash
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUBMISSION_ID/complete \
@@ -212,9 +248,11 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/$SUB
 ```bash
 curl .../submit/$SUBMISSION_ID                    # lifecycle status
 curl .../submit/$SUBMISSION_ID/manifest/status    # manifest status
-curl .../submit/$SUBMISSION_ID/fulfillment        # media fulfillment status (lazy lane: generation progress)
+curl .../submit/$SUBMISSION_ID/fulfillment        # media fulfillment status (lazy lane: pending, generating, accepted, or failed)
 ```
+
+On the lazy lane, the fulfillment read reports `pending` until extraction completes and any requested review is approved, then `generating`, then `accepted` once media is done (or `failed` if generation stalls). It also carries the submission's `blockingReason`, so it agrees with `workflow`.
 
 ## Via MCP
 
-The same lifecycle is available as [MCP tools](/docs/mcp-reference/tools): `submit_narrative`, `get_extraction`, `get_work_manifest`, `set_manifest_strategy`, `submit_media_set`, and `complete_submission`. Approval, review, briefs, and staging uploads are HTTP-only.
+The same lifecycle is available as [MCP tools](/docs/mcp-reference/tools): `submit_narrative`, `get_extraction`, `get_work_manifest`, `set_manifest_strategy`, `submit_media_set`, and `complete_submission`. Approval, review, briefs, staging uploads, and reading the submission (polling) are HTTP-only.
