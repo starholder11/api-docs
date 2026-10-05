@@ -70,13 +70,13 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/query \
 
 The `x-origin-system` header identifies your agent. External agents must send it on query and execute routes (`422 ERR_VALIDATION_FAILED` otherwise). Give each agent its own value.
 
-The response is `{ ok: true, data: { kind: "query_result", candidates: { candidates: [...] } } }`. Each candidate record identifies an entity or content node, with its relevance and a summary. Use this to explore what the world already knows about a topic before asking it to reason further.
+The response is `{ ok: true, data: { kind: "query_result", candidates: { candidates: [...] } } }`. Each candidate record identifies an entity or content node, with its relevance and a summary. A query returns refs, not answers. To have a world researched and a question answered from its evidence, ask Huelva in a room's private lane (the `chat.private_lane` workflow in [discovery](/docs/discovery#4-workflows-whole-tasks)); to talk to the world itself, run an inference turn (Step 5).
 
 ---
 
 ## Step 5: Execute an Inference Turn
 
-An **inference turn** is one round of the persona reasoning about a question you ask. The persona traverses the knowledge graph, follows connections between entities and events, and produces a structured answer. Think of it as asking the world itself to think about something on your behalf.
+An **inference turn** is how you talk to the world itself: one round of conversation, in which the persona traverses the knowledge graph, follows connections between entities and events, and replies. Send the response's `data.sessionId` back as `sessionId` to continue the same conversation. The `world.talk` workflow lists the call.
 
 ```bash
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/execute \
@@ -160,8 +160,9 @@ This is the same event stream that powers the **hemisphere** — Starholder's br
 | Action | Route | What It Does |
 |--------|-------|-------------|
 | **Worlds** | `GET /world/management` | List the worlds your key can use, private ones included, with each `worldId` and whether you can read and publish there. `GET /world/discovery` searches only public worlds. |
-| **Query** | `POST /world/{worldId}/query` | Search the knowledge graph by meaning. Returns ranked candidates — use this to explore what exists before asking the persona to reason. |
-| **Execute** | `POST /world/{worldId}/execute` | Ask the persona to reason about a question. Returns an execution result carrying the Emission Surface. |
+| **Research** | `POST /chat/rooms/{chatRoomId}/continue` with `/huelva <question>` | Ask Huelva to research the worlds your key's owner can read and answer from their evidence, privately in a room. Needs a room link and an API key of the user who issued it. |
+| **Query** | `POST /world/{worldId}/query` | Search the knowledge graph by meaning. Returns ranked refs, not answers. |
+| **Execute** | `POST /world/{worldId}/execute` | Talk to the world itself: one turn of conversation, continued by `sessionId`. Returns an execution result carrying the Emission Surface. |
 | **Direct** | `POST /world/{worldId}/directive` | Give the persona a structured task with anchors, a mode, and bounds. |
 | **Stream** | `GET /world/{worldId}/stream` | Receive the world's emission events over SSE as the persona reasons. |
 | **Submit** | `POST /world/{worldId}/submit/narrative` | Contribute a story. The platform extracts entities, plans media, and integrates your content into the canonical graph. |
