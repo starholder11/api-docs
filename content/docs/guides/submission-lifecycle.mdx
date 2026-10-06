@@ -13,21 +13,20 @@ The body-scoped `POST /api/v1/world/submit/narrative` (`narrative_submit_legacy`
 
 ## Choose a Production Mode First
 
-You decide how much of the story the platform produces **when you submit**, with `requestedWorkStrategy`. The pipeline starts on the lane that choice names, and you can switch lanes later until media production starts (see [Changing the Lane](#changing-the-lane-while-the-pipeline-runs)).
+You decide how much of the story the platform produces **when you submit**, with `requestedWorkStrategy`. Leave it out and the story goes on the lazy lane, exactly as if you had sent `platform_default`; the submit answers `requestedWorkStrategy: "platform_default"`. The pipeline starts on the lane that choice names, and you can switch lanes later until media production starts (see [Changing the Lane](#changing-the-lane-while-the-pipeline-runs)).
 
 - **Lazy lane** (`platform_default`): the platform produces everything — extraction, graph, narration, the media bundle, 3D, video, and composed scenes — and finalizes the story. Nothing pauses for you, unless you also send `requestExtractionReview: true` to review the extraction first.
 - **Attended lane** (`self_fulfill` or `post_bounty`): the platform produces the extraction, graph, narration, and a work manifest of the media the story needs, then waits. You produce that media yourself (`self_fulfill`) or fund a marketplace bounty for another creator (`post_bounty`). By default the pipeline also pauses after extraction so you can review and correct it; send `skipExtractionReview: true` to go straight to the manifest.
 
 | You want | Send at submit | You do afterwards |
 |----------|----------------|-------------------|
-| The platform to produce everything | `requestedWorkStrategy: "platform_default"` (optional `creativeBrief`) | Nothing; poll the submission until `registered` (step 2) |
+| The platform to produce everything | `requestedWorkStrategy: "platform_default"`, or no `requestedWorkStrategy` (optional `creativeBrief`) | Nothing; poll the submission until `registered` (step 2) |
 | To review the extraction, then have the platform produce everything | `"platform_default"` + `requestExtractionReview: true` | Step 3; approval starts platform production; watch `GET .../fulfillment` |
 | To review the extraction, then make the media yourself | `requestedWorkStrategy: "self_fulfill"` | Steps 3, 6, 7, 8 |
 | To make the media yourself, no review | `"self_fulfill"` + `skipExtractionReview: true` | Steps 6, 7, 8 |
 | To review the extraction, then offer a bounty | `"post_bounty"` + `creativeBrief` + `requestedBountyBudgetStar` | Step 3; the bounty posts on approval; then review the fulfiller's media on the bounty (step 7) |
 | To offer a bounty, no review | the same + `skipExtractionReview: true` | The bounty posts when extraction completes; review on the bounty (step 7) |
-| To decide after reading the extraction | no `requestedWorkStrategy` | Step 5 with any strategy, then the matching steps |
-| To decide after reviewing the extraction | no `requestedWorkStrategy` + `requestExtractionReview: true` | Step 3, step 5 before or after approval, then the matching steps |
+| To decide after reviewing the extraction | `requestExtractionReview: true`, with `"platform_default"` or no `requestedWorkStrategy` | Step 3; approve to keep the platform, or step 5 with `self_fulfill` or `post_bounty` before approving, then the matching steps |
 | To start attended, then hand everything to the platform | any attended body | Step 5 with `platform_default` before media production starts |
 
 `skipExtractionReview` and `requestExtractionReview` cannot both be `true`; that submission is rejected with `ERR_VALIDATION_FAILED`.
@@ -36,9 +35,9 @@ You decide how much of the story the platform produces **when you submit**, with
 
 The lane is not fixed when the pipeline starts. Until media production starts, `POST .../manifest/strategy` (step 5) moves the running pipeline to another strategy, in either direction:
 
-- **Attended to platform.** From an attended or undecided submission, choose `platform_default` during extraction, during extraction review, or once the work manifest is waiting on you. If the manifest is waiting, the platform starts producing all media at once. During review, the review stays open, and approving it starts platform production.
+- **Attended to platform.** From an attended submission, choose `platform_default` during extraction, during extraction review, or once the work manifest is waiting on you. If the manifest is waiting, the platform starts producing all media at once. During review, the review stays open, and approving it starts platform production.
 - **Platform to attended.** On the lazy lane, choose `self_fulfill` while extraction runs. With `requestExtractionReview`, you can choose `self_fulfill` or `post_bounty` any time until you approve. The pipeline then pauses for review (unless you skipped it or it is done) and waits on the work manifest. Without review, `platform_default` becomes final when extraction completes, and an unreviewed lazy-lane submission cannot switch to a bounty, because a bounty needs the extraction.
-- **Undecided to any.** With no strategy at submit, choose any of the three after extraction.
+- **Undecided to any.** A submission with no strategy chooses any of the three after extraction. Leaving `requestedWorkStrategy` out requests `platform_default`, so only submissions made before October 6, 2026 can be undecided.
 
 Two rules bound the switch. Once media generation has started, or fulfillment is complete, the call returns `409 ERR_STRATEGY_SELECTION_CLOSED` and nothing changes. And a strategy that has been *selected* (`fulfillmentStrategy` is set, either by step 5 or when the platform applies `requestedWorkStrategy`) cannot be replaced: a different one returns `409 ERR_STRATEGY_ALREADY_SET`.
 
