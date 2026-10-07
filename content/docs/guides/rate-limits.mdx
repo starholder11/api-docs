@@ -61,6 +61,8 @@ The `message` field tells you which dimension was exceeded. The execution routes
 
 **Denied requests do not consume quota.** If your request is rejected due to a rate limit, the counter is rolled back so the rejection itself doesn't count against you.
 
+**Narrative submissions count only when accepted.** The daily narrative-submission quota counts the submissions the platform accepts. Re-sending an existing `submissionId` (for example after a timeout), a rejected submission, and a failed request don't count against it, so you can retry with the same `submissionId` or fix a rejected body and send it again. Every call still counts toward the per-minute and daily request limits.
+
 ## Per-Turn Resource Limits
 
 Beyond request frequency, each inference turn has its own resource budget:

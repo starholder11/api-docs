@@ -9,7 +9,7 @@ description: "2 operations tagged world.gaps."
 
 `GET /api/v1/world/{worldId}/gaps`
 
-**List gap coordinates as feed entries.** Authorizes with authorizeRouteRequest (human or external_agent; world:read and canAccessGapCoordinates, AES §8.4.5). Reads the scalar fields of the world's own GapCoordinate nodes, applies SKIP/LIMIT, then post-filters by status, significance, and the visibility surface, keeping only open and filled gaps. Each result is projected to a GapFeedEntry. internal_topology is not served to external agents (WORLD_TOPOLOGY_ENGINE §10.1): an external agent that omits surface or asks for internal_topology receives agent_readable. agent_readable is refused when the world policy sets agentGapReadEnabled to false; it is otherwise enabled by default.
+**List gap coordinates as feed entries.** Authorizes with authorizeRouteRequest (human or external_agent; world:read and canAccessGapCoordinates, AES §8.4.5). A worldId the world registry does not hold answers 404 ERR_WORLD_NOT_FOUND (AES §8.7) before any gap is read. Otherwise reads the scalar fields of the world's own GapCoordinate nodes, applies SKIP/LIMIT, then post-filters by status, significance, and the visibility surface, keeping only open and filled gaps. Each result is projected to a GapFeedEntry. internal_topology is not served to external agents (WORLD_TOPOLOGY_ENGINE §10.1): an external agent that omits surface or asks for internal_topology receives agent_readable. agent_readable is refused when the world policy sets agentGapReadEnabled to false; it is otherwise enabled by default.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -139,6 +139,32 @@ description: "2 operations tagged world.gaps."
   ```json
   {
     "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+- **404**: \{error:\{code:'ERR_WORLD_NOT_FOUND', message, retryable:false\}\} when the world registry holds no world with this worldId (AES §8.7). No gap is read. Not enveloped (no ok or correlationId). Error codes: `ERR_WORLD_NOT_FOUND`.
+
+  `application/json`
+
+  ```json
+  {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
   }
   ```
 

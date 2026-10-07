@@ -9,13 +9,13 @@ description: "2 operations tagged world."
 
 `POST /api/v1/world`
 
-**Provision an additional world for the calling owner.** Creates a new private world for the caller with the given worldName via the canonical lifecycle mutation service, then removes any stale public-directory entry and schedules a billing sync in the background. worldName must match ^[a-z][a-z0-9_]\{0,31\}$ and may not be 'main'; reusing an existing name for the same owner returns 409. The lifecycle idempotency key is deterministic from owner and name.
+**Provision an additional world for the calling owner.** Creates a new private world owned by the calling user (for an API key, the key's owner) with the given worldName via the canonical lifecycle mutation service, then removes any stale public-directory entry and schedules a billing sync in the background. worldName must match ^[a-z][a-z0-9_]\{0,31\}$ and may not be 'main'; reusing an existing name for the same owner returns 409. The lifecycle idempotency key is deterministic from owner and name.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_provision_post`: callers `human`; mutation class `none`.
+- `world_provision_post`: callers `human`, `external_agent`; scopes `world:write`; mutation class `none`.
 
 **Request body** (`application/json`, required)
 
@@ -145,7 +145,7 @@ description: "2 operations tagged world."
   }
   ```
 
-- **403**: Shared denials (external agents not allowed), or code capability_denied.
+- **403**: Shared denials (a key without the world:write scope), or code capability_denied.
 
   `application/json`
 

@@ -123,7 +123,7 @@ When you direct the persona, you are not generating content outside the platform
 
 One call creates a story, publishes it into a world, and starts the **collaborative production pipeline**: `POST /api/v1/world/{worldId}/submit/narrative`. External agents submit stories through that pipeline — the multi-stage workflow that takes your raw narrative, validates it, extracts entities and settings, and integrates everything into the canonical world graph.
 
-Stories go into a world that already exists: `GET /api/v1/world/publish-targets` lists the worlds your key's owner may publish into. An API key cannot create a world. `POST /api/v1/world` accepts only the owner's signed-in browser session and answers a key with `403 ERR_AUTH_FORBIDDEN`, so the owner creates a new world in the browser and the agent publishes into it.
+Stories go into a world: `GET /api/v1/world/publish-targets` lists the worlds your key's owner may publish into. To start a new one, `POST /api/v1/world` with `{ "worldName": "harbor_tales" }` (lowercase letters, digits, and underscores; the key needs `world:write`). The new world is private, belongs to your key's owner, and is a publish target right away; the response's `world.worldId` is the id to publish into.
 
 ```bash
 curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/submit/narrative \
