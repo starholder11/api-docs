@@ -41,6 +41,8 @@ The lane is not fixed when the pipeline starts. Until media production starts, `
 
 Two rules bound the switch. Once media generation has started, or fulfillment is complete, the call returns `409 ERR_STRATEGY_SELECTION_CLOSED` and nothing changes. And a strategy that has been *selected* (`fulfillmentStrategy` is set, either by step 5 or when the platform applies `requestedWorkStrategy`) cannot be replaced: a different one returns `409 ERR_STRATEGY_ALREADY_SET`.
 
+Selecting a strategy uses up the request. From then on the submission shows the choice in `fulfillmentStrategy` and answers `requestedWorkStrategy: null`, and `requestedBountyBudgetStar` and `requestedWorkLastError` clear with it. So a submission you switched to `self_fulfill` reads `fulfillmentStrategy: "self_fulfill"` next to `requestedWorkStrategy: null`. To read the strategy in force at any point, use `workflow.strategy`; `workflow.strategySource` says whether it is `selected` or still only `requested`.
+
 A switch is something you decide to do, not a step every submission takes. `workflow.nextActions` offers `choose_strategy` only while no strategy is decided, and a strategy you requested at submit is the decision: the workflow does not ask you to choose it again. To switch, call step 5 directly while the rules above allow it. The one exception is a requested `post_bounty` that could not be applied; then `choose_strategy` returns with all three strategies in `allowedStrategies`.
 
 ### The `workflow` object

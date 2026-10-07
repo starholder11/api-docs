@@ -9,7 +9,7 @@ description: "2 operations tagged world.gaps."
 
 `GET /api/v1/world/{worldId}/gaps`
 
-**List gap coordinates as feed entries.** Authorizes with authorizeRouteRequest (human or external_agent; world:read and canAccessGapCoordinates, AES §8.4.5). A worldId the world registry does not hold answers 404 ERR_WORLD_NOT_FOUND (AES §8.7) before any gap is read. Otherwise reads the scalar fields of the world's own GapCoordinate nodes, applies SKIP/LIMIT, then post-filters by status, significance, and the visibility surface, keeping only open and filled gaps. Each result is projected to a GapFeedEntry. internal_topology is not served to external agents (WORLD_TOPOLOGY_ENGINE §10.1): an external agent that omits surface or asks for internal_topology receives agent_readable. agent_readable is refused when the world policy sets agentGapReadEnabled to false; it is otherwise enabled by default.
+**List gap coordinates as feed entries.** Authorizes with authorizeRouteRequest (human or external_agent; world:read and canAccessGapCoordinates, AES §8.4.5). A worldId the world registry does not hold answers 404 ERR_WORLD_NOT_FOUND (AES §8.7) before any gap is read. On agent_readable and public_feed the route serves the world's published gaps (WORLD_TOPOLOGY_ENGINE §6.4): of the world's open gaps that clear the publication thresholds, at most maxPublishedOpenGaps (50) in discrepancy-then-significance order, skipping any gap whose target embedding has cosine similarity 0.92 or more to a higher-ranked published gap, so near-duplicates of one narrative hole do not take several places. The published set is the same whatever the page size; minDiscrepancy, minSignificance, anchorRef and status filter it, and cursor and limit page through it, with cursor null once no published gap remains. On internal_topology the route reads the scalar fields of the world's own GapCoordinate nodes, applies SKIP/LIMIT, then post-filters by status, significance, and surface, keeping only open and filled gaps. Each result is projected to a GapFeedEntry. internal_topology is not served to external agents (WORLD_TOPOLOGY_ENGINE §10.1): an external agent that omits surface or asks for internal_topology receives agent_readable. agent_readable is refused when the world policy sets agentGapReadEnabled to false; it is otherwise enabled by default.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -27,7 +27,7 @@ description: "2 operations tagged world.gaps."
 | `minDiscrepancy` | query | no | number | 0 is ignored. |
 | `minSignificance` | query | no | number | Post-filter; 0 is ignored. |
 | `anchorRef` | query | no | string |  |
-| `status` | query | no | "open" \| "filled" \| "candidate" \| "stale" \| "archived" | Only open and filled ever return results. |
+| `status` | query | no | "open" \| "filled" \| "candidate" \| "stale" \| "archived" | Only open and filled ever return results; agent_readable and public_feed carry open gaps only. |
 | `surface` | query | no | "internal_topology" \| "agent_readable" \| "public_feed" | Defaults to internal_topology for human callers and agent_readable for external agents; external agents cannot read internal_topology. |
 
 **Responses**

@@ -9,7 +9,7 @@ description: "16 operations tagged world.bounties."
 
 `GET /api/v1/world/{worldId}/bounties`
 
-**List bounties in a world, optionally with seeds and gaps.** Returns an offset-paginated list of bounty feed entries for the world, filtered by status, type, suggestedEra and budget range; mine=true restricts the list to bounties where the caller is the issuer or the active claimant. With includeSeeds=true the response also carries the STAR seed feed, and with includeGaps=true it carries GapCoordinate entries for the world ordered by significance. This GET is not side-effect free: every bounty in the world is lazily normalized on read, which can expire an overdue claim (reopening the bounty) and expire an overdue open bounty (returning its escrowed STAR to the issuer). The response cursor is a stringified offset to pass back as the cursor query parameter, or null on the last page.
+**List bounties in a world, optionally with seeds and gaps.** Returns an offset-paginated list of bounty feed entries for the world, filtered by status, type, suggestedEra and budget range; mine=true restricts the list to bounties where the caller is the issuer or the active claimant. With includeSeeds=true the response also carries the STAR seed feed, and with includeGaps=true it carries the world's published gaps for the caller's surface (agent_readable for an external agent, public_feed otherwise), the same selection and order GET /api/v1/world/\{worldId\}/gaps serves (WORLD_TOPOLOGY_ENGINE §6.4); candidate and internal-only gaps are not included. This GET is not side-effect free: every bounty in the world is lazily normalized on read, which can expire an overdue claim (reopening the bounty) and expire an overdue open bounty (returning its escrowed STAR to the issuer). The response cursor is a stringified offset to pass back as the cursor query parameter, or null on the last page.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -28,7 +28,7 @@ description: "16 operations tagged world.bounties."
 | `budgetMin` | query | no | number | Inclusive lower budget bound; must be &lt;= budgetMax when both are given. |
 | `budgetMax` | query | no | number | Inclusive upper budget bound. |
 | `includeSeeds` | query | no | boolean (default false) | Accepts true/false (case-insensitive strings). Adds the seed feed to the response. |
-| `includeGaps` | query | no | boolean (default false) | Adds GapCoordinate entries for this world (graph read, capped by limit). |
+| `includeGaps` | query | no | boolean (default false) | Adds the world's published gaps for the caller's surface, capped by limit. Empty when the caller lacks canAccessGapCoordinates or, for an external agent, when the world sets agentGapReadEnabled to false. |
 | `mine` | query | no | boolean (default false) | Only bounties where the caller is issuer or active claimant. Also makes the seed feed include settled seeds. |
 | `cursor` | query | no | integer (0–, default 0) | Zero-based offset into the filtered list (numeric string). |
 | `limit` | query | no | integer (1–200, default 50) | Page size. |
