@@ -1716,7 +1716,7 @@ description: "16 operations tagged world.bounties."
 
 `POST /api/v1/world/{worldId}/bounties/{bountyId}/finalize`
 
-**Finalize an accepted bounty: publish work and release escrow.** Issuer-only. For an accepted bounty: text_story publishes the submitted text asset, creates/merges a TextRoot marked media_strategy_pending and starts the media pipeline; media_production copies staged assets into the destination and releases escrow plus any top-up to the claimant. On a bounty that is already finalized or registered, it re-runs settlement and returns alreadyFinalized: true. Recorded as a HAM turn under a per-bounty lock; idempotencyKey is accepted but unused.
+**Finalize an accepted bounty: publish work and release escrow.** Issuer-only. For an accepted bounty: text_story publishes the submitted text asset, creates/merges its TextRoot with media strategy platform_default (the lazy lane; until media production starts the issuer can choose another on POST /api/backlot/textroot/[textRootId]/media-strategy) and starts the media pipeline; media_production copies staged assets into the destination and releases escrow plus any top-up to the claimant. On a bounty that is already finalized or registered, it re-runs settlement and returns alreadyFinalized: true. Recorded as a HAM turn under a per-bounty lock; idempotencyKey is accepted but unused.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
