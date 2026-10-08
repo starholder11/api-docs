@@ -31,15 +31,15 @@ Every API response follows the same structure, so you always know what to expect
   "ok": false,
   "error": {
     "code": "ERR_PERMISSION_INTERSECTION_DENIED",
-    "message": "Request is not permitted by the actor permission envelope",
+    "message": "This credential does not hold the account:write scope this operation requires",
     "retryable": false,
     "correlationId": "corr_abc123def456",
-    "details": { "reason": "missing_capability" }
+    "details": { "reason": "missing_scope", "detail": "account:write" }
   }
 }
 ```
 
-When `retryable` is `true`, the error may include `retryAfterMs`; on `409` and `429` responses the `Retry-After` header carries the same delay in seconds. Authorization denials include `error.details.reason`, which names exactly which check failed (for example `missing_scope`, `missing_capability`, `risk_tier_exceeded`, `world_policy_denied`).
+When `retryable` is `true`, the error may include `retryAfterMs`; on `409` and `429` responses the `Retry-After` header carries the same delay in seconds. Authorization denials include `error.details.reason`, which names exactly which check failed (for example `missing_scope`, `missing_capability`, `risk_tier_exceeded`, `world_policy_denied`). For `missing_scope` and `missing_capability`, `error.details.detail` names the scope or capability, and so does the message. A key created in Settings holds every [standard scope](/docs/authentication#world-scopes), so if one of those is missing, the key was created with a narrower list or is an OAuth connection approved without it: create a new key, or reconnect and approve the scope.
 
 A few routes answer outside this envelope. A rejected narrative submission returns `422` with `{ submissionId, status: "rejected", rejection: { reasons: [{ code, field?, message }] } }`, and the [Operation Reference](/docs/reference) shows the shape each operation returns.
 

@@ -930,7 +930,7 @@ description: "8 operations tagged world.execution."
 
 `POST /api/v1/world/{worldId}/query`
 
-**Search a world's graph for candidate refs (external agent).** External agents only: world:read, canQuery, risk tier T0, and the world's externalAgentReadEnabled flag. x-origin-system is required. Runs a query_execution through ExecutionOrchestrator, which re-authorizes and enforces quota, then performs a world-graph search and returns ranked candidate refs. Read-only and not idempotency-keyed.
+**Search a world's graph for candidate refs (external agent).** External agents only: world:read, canQuery, risk tier T0, and the world's externalAgentReadEnabled flag. x-origin-system is required. Runs a query_execution through ExecutionOrchestrator, which re-authorizes and enforces quota, then performs a world-graph search and returns ranked candidate refs. Without mediaType the search ranks every kind of ref in the world together, and images far outnumber entities, settings and stories; mediaType narrows it to one ref prefix. Read-only and not idempotency-keyed.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -979,7 +979,18 @@ description: "8 operations tagged world.execution."
       "default": "all"
     },
     "mediaType": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "ent",
+        "set",
+        "txt",
+        "img",
+        "vid",
+        "aud",
+        "obj",
+        "topic"
+      ],
+      "description": "Search only refs with this prefix: ent (entities), set (settings), txt (stories), or the media kinds img, vid, aud, obj and topic. Omitted, every kind is ranked together and images dominate."
     },
     "requestId": {
       "type": "string"
@@ -1047,7 +1058,7 @@ description: "8 operations tagged world.execution."
   }
   ```
 
-- **400**: ERR_VALIDATION_FAILED: invalid JSON or invalid fields. Error codes: `ERR_VALIDATION_FAILED`.
+- **400**: ERR_VALIDATION_FAILED: invalid JSON or invalid fields, including a mediaType the search does not recognize. Error codes: `ERR_VALIDATION_FAILED`.
 
   `application/json`
 

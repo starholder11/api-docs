@@ -690,6 +690,14 @@ Named shapes that operations reference with `$ref: "#/components/schemas/<Name>"
     "capabilitySet": {
       "$ref": "#/components/schemas/CapabilitySet"
     },
+    "scopeGrant": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "custom"
+      ],
+      "description": "`standard`: the key was created with the standard scopes and capabilities and holds them as the standard set changes. `custom`: it holds exactly the scopes and capabilities it was given. Not set on an OAuth connection key, which holds the scopes its owner approved."
+    },
     "riskTierCeiling": {
       "type": "string",
       "enum": [

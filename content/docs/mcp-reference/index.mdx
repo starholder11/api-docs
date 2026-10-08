@@ -91,7 +91,7 @@ Authentication failures are HTTP errors, not JSON-RPC messages. A request withou
 | `prompts/list` | The [workflow prompts](#prompts) your credential can run. |
 | `prompts/get` | One prompt's text, with the arguments you supply filled in. |
 
-Every result carries `resultType` (`complete`, or `input_required` when the server needs an answer from the person; see [Confirmation](#confirmation)) and `_meta["io.modelcontextprotocol/serverInfo"]` (`starholder-world`, version `3.0.0`). A notification (a message without an `id`) gets `202` with no body. `GET` and `DELETE` get `405`: there is no event stream and no session to end.
+Every result carries `resultType` (`complete`, or `input_required` when the server needs an answer from the person; see [Confirmation](#confirmation)) and `_meta["io.modelcontextprotocol/serverInfo"]` (`starholder-world`, version `3.0.1`). A notification (a message without an `id`) gets `202` with no body. `GET` and `DELETE` get `405`: there is no event stream and no session to end.
 
 | Error | HTTP | When |
 | --- | --- | --- |

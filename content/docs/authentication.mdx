@@ -202,7 +202,7 @@ A request must pass both checks. Your key needs the right capability *and* the r
 | `account:read` | Read your own account data: your inbox and its summary, your KSLP playlists, your API keys, your seed slots, and the person search |
 | `account:write` | Change your own account data: open your inbox and archive its messages, create and edit your KSLP playlists, and send \$STAR transfers and tips |
 
-Account data is not world data, so a key that can read your worlds cannot, for that reason alone, read your invitations. A key's scopes are fixed when it is created: keys created before the account scopes existed do not hold them, and an agent that needs them needs a new key. A connection made through OAuth (an MCP client) is granted them unless you choose **Read only**; the consent screen lists them as **Use your account**. A connection approved before October 7, 2026 keeps the scopes it was granted until you reconnect it.
+Account data is not world data, so a key that can read your worlds cannot, for that reason alone, read your invitations. A key created in Settings holds the standard scopes and capabilities as they are now, not as they were on the day you created it: a key created before the account scopes existed holds them, and when the standard set grows your keys grow with it. A key created with a narrower list keeps exactly that list. A connection made through OAuth (an MCP client) is granted the account scopes unless you choose **Read only**; the consent screen lists them as **Use your account**. A connection keeps the scopes you approved, so one approved before October 7, 2026 keeps the scopes it was granted until you reconnect it.
 
 ## World Policy Checks
 

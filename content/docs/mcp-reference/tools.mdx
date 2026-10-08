@@ -1434,7 +1434,7 @@ Not offered: `reason` (The contract states the handler ignores it.)
 
 **Search a world**
 
-Search a world's graph for candidate refs (external agent). Ranked refs for a natural-language query; read each with world_get_content, view entity, setting or textroot by its kind. worldId comes from world_list.
+Search a world's graph for candidate refs (external agent). Ranked refs for a natural-language query. To find entities, settings or stories, set mediaType to ent, set or txt and read each ref with world_get_content, view entity, setting or textroot. worldId comes from world_list.
 
 Operation [`world_query`](/docs/reference/world-execution#world_query): `POST /api/v1/world/{worldId}/query`.
 
@@ -1468,7 +1468,18 @@ Not offered: `retrievalDepth` (The contract states the search validates it but d
       "default": "all"
     },
     "mediaType": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "ent",
+        "set",
+        "txt",
+        "img",
+        "vid",
+        "aud",
+        "obj",
+        "topic"
+      ],
+      "description": "Search only refs with this prefix: ent (entities), set (settings), txt (stories), or the media kinds img, vid, aud, obj and topic. Omitted, every kind is ranked together and images dominate."
     },
     "requestId": {
       "type": "string"
