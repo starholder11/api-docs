@@ -11,11 +11,11 @@ description: "2 operations tagged world.prompt-policy."
 
 **Get the world's effective prompt policy.** Owner-only read of the effective world prompt policy (prompt text, schema version, source) along with the config ref and config hash needed for PUT. Response is Cache-Control: no-store.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_prompt_policy_get`: callers `human`; world role `owner` or higher (humans); mutation class `none`.
+- `world_prompt_policy_get`: callers `human`, `external_agent`; scopes `world:read`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); world role `owner` or higher (humans); mutation class `none`.
 
 **Parameters**
 
@@ -92,7 +92,7 @@ description: "2 operations tagged world.prompt-policy."
   }
   ```
 
-- **404**: ERR_NOT_FOUND.
+- **404**: ERR_NOT_FOUND. Also ERR_WORLD_POLICY_DENIED when the world's policy does not admit external agents. Error codes: `ERR_WORLD_POLICY_DENIED`.
 
   `application/json`
 
@@ -238,11 +238,11 @@ description: "2 operations tagged world.prompt-policy."
 
 **Replace the world's prompt policy text.** Owner-only replacement of the world prompt text (trimmed, 1-2500 characters). baseConfigHash must equal the current world config hash or the call fails with 409. The handler rewrites the full world config with the new promptPolicy, writes a config-update receipt, and updates the world's config ref/hash; it does not use the generic config mutation path or refresh the public directory. Because the hash changes on success, a blind retry returns 409.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_prompt_policy_put`: callers `human`; world role `owner` or higher (humans); mutation class `none`.
+- `world_prompt_policy_put`: callers `human`, `external_agent`; scopes `world:write`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); world role `owner` or higher (humans); mutation class `none`.
 
 **Parameters**
 
@@ -385,7 +385,7 @@ description: "2 operations tagged world.prompt-policy."
   }
   ```
 
-- **404**: ERR_NOT_FOUND.
+- **404**: ERR_NOT_FOUND. Also ERR_WORLD_POLICY_DENIED when the world's policy does not admit external agents. Error codes: `ERR_WORLD_POLICY_DENIED`.
 
   `application/json`
 

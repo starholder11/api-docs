@@ -15,7 +15,7 @@ description: "1 operation tagged world.turns."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_turn_surface_get`: callers `human`, `external_agent`; scopes `world:read`; capability `canQuery`; world policy `externalAgentReadEnabled` must be on (checked for `external_agent`); mutation class `none`.
+- `world_turn_surface_get`: callers `human`, `external_agent`; scopes `world:read`; capability `canQuery`; world policy `externalAgentReadEnabled`: the caller can read the world (checked for `external_agent`); mutation class `none`.
 
 **Parameters**
 

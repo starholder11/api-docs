@@ -1,0 +1,96 @@
+---
+title: Working with Huelva
+description: How an agent asks Huelva to research the owner's worlds, reads what she answers, and brings the work she stages to the owner for a decision.
+---
+
+Huelva is Starholder's operator. She researches the worlds a person can read, explains what she finds, and stages work in those worlds for that person to approve. An agent asks her with its API key or OAuth connection alone, at `POST /api/v1/huelva`, or through MCP with the `huelva_ask` tool. Both are the same operation, and the discovery document's `huelva.ask` recipe is the step-by-step version of this guide. The request and response schemas are in the Operation Reference: [Huelva](/docs/reference/huelva).
+
+Huelva works for the key's owner, on every world the owner owns or is a member of, and within the key's scopes. Asking her changes nothing in a world. Work she prepares waits for the owner's decision, which is a separate call.
+
+## When to ask her
+
+Ask Huelva whenever you would otherwise assemble an answer yourself from searches, entity and story reads, and consult turns. Good questions include what a world holds about a subject, who someone in it is and what connects to them, what happened there, or how two of the owner's worlds differ. She works out what to read, reads it, and answers from that evidence, citing what she relied on.
+
+Use the direct tools instead when you need one known thing, such as an entity by ref (`GET /world/{worldId}/entities/{ref}`, MCP `entity_get`) or a list of search hits (`POST /world/{worldId}/query`, MCP `world_search`). To talk to the world itself, as a conversation with its voice rather than a question about it, use [`world.talk`](/docs/discovery).
+
+## Asking
+
+An ask is a `user_message` in plain words. Name a world by its handle, such as `@ada/lantern_harbor` (the `worldHandle` that `world.find` returns), or send its `worldId`. One ask may name several worlds.
+
+```bash
+curl -X POST https://www.starholder.xyz/api/v1/huelva \
+  -H "X-Api-Key: $API_KEY" \
+  -H "X-Origin-System: my-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "huelvaAsk": {
+      "kind": "user_message",
+      "userMessage": "What does @ada/lantern_harbor hold about the tide charts?"
+    },
+    "requestId": "tide-charts-1"
+  }'
+```
+
+`X-Origin-System` names your agent and is required. `requestId` is optional and names one question: repeating it with the same ask returns the stored answer instead of asking again. Each ask counts against the key's inference quota. Through MCP, `huelva_ask` takes `huelvaAsk: { userMessage }` and sends `kind` itself.
+
+## Reading the reply
+
+`responseText` is Huelva's reply in prose, ready to show a person. `shell.result.kind` says what the reply is:
+
+- **`resolution`**: an answer. `shell.result.citations` lists the evidence she cited, each `token` with the `sourceRefs` it rests on.
+- **`explanation`** and **`consult_summary`**: answers; a consult summary carries `consultRefs`.
+- **`clarification`**: a question back, in `shell.result.clarification.question`, with `candidates` when she has them. Your next ask answers it.
+- **`honest_insufficiency`**: the evidence does not support an answer. Its `summary` says what is missing. This is a result to report, not an error to retry.
+- **`proposal`** and **`plan`**: work she staged, described under [Work Huelva stages](#work-huelva-stages).
+- **`navigation_handoff`**: a step that runs in the Starholder app. `responseText` says to open it there; nothing ran on your behalf.
+
+```json
+{
+  "responseKind": "private_lane",
+  "laneId": "huelva",
+  "responseText": "Lantern Harbor keeps three tide charts...",
+  "shell": {
+    "result": {
+      "kind": "resolution",
+      "message": "Lantern Harbor keeps three tide charts...",
+      "citations": [{ "token": "e3", "sourceRefs": ["..."] }]
+    }
+  }
+}
+```
+
+## Conversations
+
+A conversation stays on one anchor. With `worldId`, the anchor is the owner's open session in that world, so the history is shared with the owner's own Huelva there. Without one, it is Huelva's home. Each exchange is recorded under its anchor, and Huelva reads the anchor's recent exchanges on the next ask. Send the same `worldId`, or none, with every follow-up and with the answer to a clarification. Changing the anchor starts a new conversation.
+
+## Work Huelva stages
+
+Huelva can prepare work in the owner's worlds when asked, such as creating or configuring a world, inviting someone, or publishing a story. An ask never runs it. That includes work she would carry out at once in the app, and an approval written into an ask is not acted on. Staged work comes back for a decision:
+
+- **One action** comes back as `responseKind: "proposal"`. The reply carries `proposalId`, `expiresAt`, `resolvedTargetWorlds` (the worlds it would act in), and `confirm`, whose `approveBody` and `rejectBody` are complete request bodies for this same operation. Send one unchanged.
+- **Several steps** come back as a plan: `shell.result.kind` is `plan`. Its `goalRestatement` says what it is for and its `steps` what it does. Decide it with `{ "kind": "plan_followthrough", "planId": "<shell.result.plan.planId>", "requestedAction": "approve" }`, or `"reject"`. A plan staged beside an answer is in `shell.result.staged.plan`.
+
+Deciding is the owner's write. Asking needs the scopes `world:read` and `inference:propose`; every follow-through also needs `world:write`. A key without it can research but not decide: its caller directory marks `huelva_followthrough` `callable: false`, MCP does not list that tool, and a follow-through answers `403 ERR_PERMISSION_INTERSECTION_DENIED` with `error.details.reason` `missing_scope` before anything runs. Approve only after the person has decided. Without a decision, send `reject` or nothing, and a proposal expires at `expiresAt`.
+
+Approving runs the staged work with the owner's authority. The outcome is in fields: `responseKind` `rejected`, or `approval_status` with `resolutionState`, `executionBridged`, `receiptRefs`, and `failure` for a proposal. For a plan, the outcome is `shell.result` (`approval_status` with `resolutionState`, `executionProof`, or `partialExecution`). A follow-through with `requestedAction: "status"` reads where the work stands, and `retry_failed_remainder` retries the steps that failed.
+
+## Time and streaming
+
+An ask takes tens of seconds and can run for minutes. Over HTTP, give the call a timeout of minutes, or send `Accept: text/event-stream` to watch her work. The stream opens with `open`, sends `ping` every 10 seconds and `progress` as she works, and ends with `settled`, whose `body` is the reply a plain call returns and whose `httpStatus` is its status; see [SSE Streaming](/docs/guides/sse-streaming#an-ask-to-huelva-outside-a-room). Through MCP, `huelva_ask` waits for the reply and returns it.
+
+## Failures
+
+Admission answers before Huelva runs, as plain JSON on either transport:
+
+- `400 input_invalid`: a missing or invalid `huelvaAsk`. The body is checked before the key, so this can come before `401`.
+- `401`: no valid key.
+- `403 ERR_PERMISSION_INTERSECTION_DENIED`: a follow-through without `world:write`.
+- `404 ERR_WORLD_NOT_FOUND`: a `worldId` the owner cannot read.
+- `422 ERR_VALIDATION_FAILED`: no `X-Origin-System`.
+- `429 ERR_QUOTA_EXCEEDED`: the inference quota is spent; wait for `Retry-After`.
+
+While she works: `409` with `retryAfterMs` means the same `requestId` is still running, so wait and repeat it. `400 huelva_invocation_claim_conflict` means a `requestId` was reused with a different ask. `502` with `failureClass: "prototype_terminal_failure"` means her research did not finish; ask again with a new `requestId`. A streamed ask that exhausts its run budget settles with `504 huelva_ask_run_budget_exhausted`. A follow-through on an expired proposal answers `400 proposal_expired`.
+
+## Inside a room
+
+An agent working in one of the owner's chat rooms can ask Huelva there instead, through the room's private lane (`chat.private_lane`, or `/huelva <question>` in the room). Both entries run the same Huelva and return the same reply fields; the room lane needs a room link as well as the key.

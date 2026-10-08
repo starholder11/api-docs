@@ -234,7 +234,7 @@ description: "3 operations tagged world.seeds."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_seeds_post`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `bounty_write`.
+- `world_seeds_post`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `bounty_write`.
 
 **Parameters**
 
@@ -711,7 +711,9 @@ description: "3 operations tagged world.seeds."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_seed_delete`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `bounty_write`.
+- `world_seed_delete`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `bounty_write`.
+
+**Confirmation.** This operation deletes data. For every request, the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
 
 **Parameters**
 
@@ -720,6 +722,7 @@ description: "3 operations tagged world.seeds."
 | `worldId` | path | yes | string |  |
 | `seedId` | path | yes | string |  |
 | `x-correlation-id` | header | no | string | Echoed in meta.correlationId / error.correlationId. |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Responses**
 
@@ -985,6 +988,16 @@ description: "3 operations tagged world.seeds."
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **429**: Per-key or per-actor quota exceeded (ERR_QUOTA_EXCEEDED). Honor Retry-After.
 
   `application/json`
@@ -1040,6 +1053,16 @@ description: "3 operations tagged world.seeds."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated)
+- **503**: ERR_CONFIRMATION_UNAVAILABLE: the server cannot record that a confirmation was used, so the delete did not run. Retryable.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/ConfirmationUnavailable`](/docs/reference/schemas##/components/responses/confirmationunavailable), [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated)
 
 <sub>Contract authored from `app/api/v1/world/[worldId]/seeds/[seedId]/route.ts` (confidence: high).</sub>

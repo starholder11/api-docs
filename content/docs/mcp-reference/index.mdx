@@ -1,18 +1,18 @@
 ---
 title: MCP Reference
-description: Connect an MCP client to Starholder over Streamable HTTP, by signing in with OAuth or with your API key.
+description: Connect an MCP client to Starholder by signing in with OAuth or with your API key, and call every Starholder operation as a tool.
 ---
 
-The **Model Context Protocol (MCP)** lets an AI agent discover tools and call them without hand-written HTTP code. Starholder runs an MCP server at `POST /api/v1/mcp`. Every tool runs as your API key, or as the connection key that approving an OAuth client creates ([Authentication](/docs/authentication#oauth-connection-mcp-clients)): it calls the same `/api/v1` route you could call yourself, and that route checks the call again. A tool can do exactly what the route allows that key to do, and nothing more.
+The **Model Context Protocol (MCP)** lets an AI agent discover tools and call them without hand-written HTTP code. Starholder runs an MCP server at `POST /api/v1/mcp`. It is the Starholder API in tool form, not a second API: every operation an API key can call is a tool, generated from the published [Operation Reference](/docs/reference). Every tool runs as your API key, or as the connection key that approving an OAuth client creates ([Authentication](/docs/authentication#oauth-connection-mcp-clients)). It calls the same `/api/v1` route you could call yourself, and that route checks the call again, so a tool can do exactly what the route allows that key to do, and nothing more.
 
 ## Connecting
 
 ```text
 URL:        https://www.starholder.xyz/api/v1/mcp
-Transport:  Streamable HTTP (JSON responses)
+Transport:  Streamable HTTP, stateless, JSON responses
 Auth:       OAuth sign-in (Authorization: Bearer <accessToken>),
             or X-Api-Key: <apiKey>   or   Authorization: Bearer <apiKey>
-Protocol:   2025-06-18, 2025-03-26, or 2024-11-05
+Protocol:   2026-07-28
 ```
 
 ### Claude, ChatGPT, and other OAuth clients
@@ -23,6 +23,8 @@ Add Starholder as a remote MCP server with the URL above and OAuth as its authen
 - **ChatGPT:** Plugins → Add → Add custom MCP server. Enter a name and the URL, with OAuth authentication; ChatGPT discovers the endpoints and uses its Client Identifier Metadata Document. Choose **Create as a plugin**, then **Continue to Starholder**.
 
 Either way, the client opens Starholder in your browser. Sign in if asked, review the permissions, optionally choose **Read only**, and choose **Allow**. The connection then appears in Settings → API keys under **Connected apps**, where **Disconnect** ends it. Any MCP client that supports OAuth connects the same way, including native clients that receive the callback on a local port; [OAuth for MCP Clients](/docs/authentication#oauth-for-mcp-clients) has the protocol.
+
+A connection approved before October 7, 2026 keeps the permissions it was granted, which do not include your account (inbox, playlists, keys, seed slots, and \$STAR transfers and tips). Disconnect it and connect again to grant them.
 
 ### With an API key
 
@@ -39,51 +41,144 @@ Clients that accept a custom header can send a key instead. For example, in a cl
 }
 ```
 
-Or call it directly:
+Or call it directly. This lists the tools your key may call:
 
 ```bash
 curl https://www.starholder.xyz/api/v1/mcp \
   -H "X-Api-Key: $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"my-agent","version":"1.0"}}}'
+  -H "MCP-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: tools/list" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```
 
-The server is stateless. It issues no session id, and every HTTP request is authenticated on its own, so a revoked key or a disconnected app stops working on its next request. Authentication failures are HTTP errors, not JSON-RPC messages. A request without a credential gets `401` with `{ "error": "unauthorized" }` and a `WWW-Authenticate` challenge whose `resource_metadata` points an OAuth client to Starholder's sign-in metadata. A key or token that fails validation gets `401` with `ERR_AUTH_INVALID` in the standard [error envelope](/docs/error-handling), and its challenge adds `error="invalid_token"`, which tells an OAuth client to refresh or sign in again.
+And this calls one, searching a world:
+
+```bash
+curl https://www.starholder.xyz/api/v1/mcp \
+  -H "X-Api-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "MCP-Protocol-Version: 2026-07-28" \
+  -H "Mcp-Method: tools/call" \
+  -H "Mcp-Name: world_search" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"world_search","arguments":{"worldId":"YOUR_WORLD_ID","query":"harbor"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
+```
+
+## Requests
+
+The server speaks MCP `2026-07-28` only. There is no handshake and no session: each POST carries one JSON-RPC request that stands alone, and is authenticated on its own, so a revoked key or a disconnected app stops working on its next request. Every request carries, in `params._meta`, the protocol version (`io.modelcontextprotocol/protocolVersion`) and the client capabilities that apply to it (`io.modelcontextprotocol/clientCapabilities`), and may carry `io.modelcontextprotocol/clientInfo`. Three headers repeat routing values so the request can be routed without reading its body:
+
+| Header | Value |
+| --- | --- |
+| `MCP-Protocol-Version` | The `_meta` protocol version |
+| `Mcp-Method` | The JSON-RPC `method` |
+| `Mcp-Name` | For `tools/call` and `prompts/get`, `params.name`; for `resources/read`, `params.uri`. A value that is not plain ASCII is sent as `=?base64?<base64>?=`. |
+
+A client built for an earlier MCP revision sends `initialize`; it gets `400` with error `-32022` and `data.supported: ["2026-07-28"]`, which tells it which version to speak.
+
+Authentication failures are HTTP errors, not JSON-RPC messages. A request without a credential gets `401` with `{ "error": "unauthorized" }` and a `WWW-Authenticate` challenge whose `resource_metadata` points an OAuth client to Starholder's sign-in metadata. A key or token that fails validation gets `401` with `ERR_AUTH_INVALID` in the standard [error envelope](/docs/error-handling), and its challenge adds `error="invalid_token"`, which tells an OAuth client to refresh or sign in again.
 
 ## Methods
 
 | Method | Result |
 | --- | --- |
-| `initialize` | The negotiated protocol version (yours, if supported; otherwise `2025-06-18`), `capabilities: { tools }`, `serverInfo: starholder-world`, and short `instructions`. |
-| `ping` | `{}` |
-| `tools/list` | The tools your key's scopes and capabilities allow, each with a `title`, an input schema, `annotations`, and `securitySchemes`. |
-| `tools/call` | Runs one tool. See results below. |
+| `server/discover` | `supportedVersions`, `capabilities` (`tools`, `resources`, `prompts`), and short `instructions`. Cacheable for an hour. |
+| `tools/list` | The tools your credential's scopes and capability allow, complete in one response, each with a `title`, an `inputSchema`, `annotations`, and `securitySchemes`. Cacheable for five minutes, for this credential only. |
+| `tools/call` | Runs one tool. See [Tool results](#tool-results). |
+| `resources/list` | The fixed [resources](#resources). |
+| `resources/templates/list` | The [resource templates](#resources) your credential may read. |
+| `resources/read` | One resource by URI. |
+| `prompts/list` | The [workflow prompts](#prompts) your credential can run. |
+| `prompts/get` | One prompt's text, with the arguments you supply filled in. |
 
-Notifications (messages without an `id`) receive no reply; a request made only of notifications gets `202`. You may send a JSON-RPC batch as an array. Other methods return `-32601`. The server offers tools only, with no resources or prompts.
+Every result carries `resultType` (`complete`, or `input_required` when the server needs an answer from the person; see [Confirmation](#confirmation)) and `_meta["io.modelcontextprotocol/serverInfo"]` (`starholder-world`, version `3.0.0`). A notification (a message without an `id`) gets `202` with no body. `GET` and `DELETE` get `405`: there is no event stream and no session to end.
 
-Each tool's `annotations` repeat its `title` and carry four hints that hosts use to decide when to ask you before a call:
+| Error | HTTP | When |
+| --- | --- | --- |
+| `-32700` | 400 | The body is not JSON |
+| `-32600` | 400 | Not a JSON-RPC request, or a batch (send one request per POST) |
+| `-32602` | 400 | A required `_meta` field is missing |
+| `-32020` | 400 | `MCP-Protocol-Version`, `Mcp-Method`, or `Mcp-Name` is missing or does not match the body |
+| `-32022` | 400 | `initialize`, or a protocol version other than `2026-07-28` |
+| `-32601` | 404 | An unknown method |
+| `-32602` | 200 | An unknown tool, resource, or prompt |
 
-- `readOnlyHint` is true for tools that change nothing.
-- `destructiveHint` is true only for calls that move \$STAR or cannot be undone: `post_bounty` (which locks the budget in escrow), `cancel_bounty`, `finalize_bounty`, and `review_bounty`.
-- `idempotentHint` is true for reads and for tools that take an idempotency key, which makes a retry with the same key safe.
+## Tools
+
+Tool names are `<domain>_<verb>`: `account_get`, `inbox_get`, `playlist_create`, `star_get`, `world_list`, `world_search`, `world_get_content`, `turn_execute`, `room_continue`, `seed_place`, `submission_create`, `bounty_claim`, and so on. The [Tool Catalog](/docs/mcp-reference/tools) lists every one with the scopes and capability it needs, the operation it calls, and its argument schema.
+
+Reads about the same thing share one tool, and its `view` argument chooses what to read: `star_get` with `view: "balance"` reads your balance, and with `view: "receipt"` and a `receiptId` reads one receipt. Each view is one operation, called exactly as a tool of its own would be. The tool's description has a line per view naming any argument only that view needs, and the list offers only the views your credential may use. A missing or unknown `view` is `ERR_MCP_INVALID_ARGUMENTS`, naming the views you can send.
+
+Each tool's `inputSchema` is the operation's own request, flattened into one object: path parameters, query parameters, the `Idempotency-Key` header as `idempotencyKey`, and the body's fields. Values the server fills in are not arguments: a field with one allowed value, the `kind` of an argument a tool sends in one form only (`huelva_ask` sends `huelvaAsk` as a `user_message`), the submission's `contentHash` (computed from `narrativeText`), and `originSystem`. Nor is a field the route ignores, or one that belongs to another tool's action: `room_delete_message` takes no message text, because a delete posts nothing. The Tool Catalog lists each one a tool leaves out and why. The server checks your arguments against the schema before it calls the route, and refuses unknown fields.
+
+Each tool's `annotations` carry the hints that hosts use to decide when to ask you before a call. They state only what differs from the protocol's defaults:
+
+- `readOnlyHint` is true on tools that change nothing, and those carry no other hint but `openWorldHint`.
+- A tool that changes something states `destructiveHint`. It is true for tools that move \$STAR, run staged work or remove something, such as `star_transfer`, `seed_place`, `bounty_post` (which locks the budget in escrow), `bounty_cancel`, `bounty_settle`, `huelva_followthrough` (whose `approve` runs the work Huelva staged) and `room_delete_message`. The [Tool Catalog](/docs/mcp-reference/tools) names them all.
+- `idempotentHint` appears, as true, on a tool that changes something when repeating the same call has no further effect: tools that take an idempotency key, and operations whose own contract says a repeat changes nothing.
 - `openWorldHint` is false: every tool acts within Starholder only.
 
 `securitySchemes` names the OAuth scopes a tool needs, so a client can request only what it will use.
 
 ## Tool results
 
-A tool that runs returns `content` (the result as JSON text) and `structuredContent` (the same result as an object). Its result is the bound route's response data; the route's entry in the [Operation Reference](/docs/reference) describes it.
+A tool that runs returns `content` (the result as JSON text) and `structuredContent` (the same result as an object). Its result is the route's response `data`; the operation's entry in the [Operation Reference](/docs/reference) describes it.
 
-A tool that runs and fails, including when the route denies it, returns a normal result with `isError: true`. The text is `<code>: <message>` and `structuredContent.error` is `{ code, message }`, so your model can read why and adjust. For example, a world whose policy blocks external writes yields `ERR_WORLD_POLICY_DENIED`, and a missing capability yields `ERR_PERMISSION_INTERSECTION_DENIED`.
+A tool that runs and fails, including when the route refuses it, returns a normal result with `isError: true`. The text is `<code>: <message>`, and `structuredContent.error` is the route's own error: `code`, `message`, `retryable`, `correlationId`, `httpStatus`, and `details` when the route sent them. For example, a world that does not admit your key yields `ERR_WORLD_POLICY_DENIED`, and a missing capability yields `ERR_PERMISSION_INTERSECTION_DENIED`. Quote the `correlationId` when you report a problem. Two errors come from the MCP server itself: `ERR_MCP_INVALID_ARGUMENTS` when the arguments do not match the schema (nothing was sent), and `ERR_QUOTA_EXCEEDED` when your key is over its quota (`details.retryAfterMs` says when to retry).
 
-Only two `tools/call` failures are JSON-RPC errors: an unknown tool name (`-32602`) and a key that fails authentication (`-32001`).
+An unknown tool is a JSON-RPC error, `-32602`. A tool your credential may not use is reported the same way, as if it did not exist.
+
+## Confirmation
+
+Some deletes run only after the person confirms them. When the route asks for confirmation and your client declares the `elicitation` capability, the result has `resultType: "input_required"` with one form question, `inputRequests.confirm`, stating what will be removed, and a `requestState`. Show the question; then call the same tool again with the same arguments, a new `id`, `requestState` unchanged, and `inputResponses: { "confirm": { "action": "accept", "content": { "confirm": true } } }`. The delete runs once. Any other answer changes nothing. A client without elicitation gets `isError` with `ERR_CONFIRMATION_REQUIRED` and `structuredContent.error.confirmation`; after the person confirms, call the tool again with the same arguments and its `confirmationId`. A confirmation expires after five minutes and works once.
+
+The tools that can send a delete take an optional `confirmationId` and are annotated destructive; the [Tool Catalog](/docs/mcp-reference/tools) marks each one. A tool that shares a route with a delete but never sends one, such as `room_post_message` beside `room_delete_message`, is never asked to confirm.
+
+## Resources
+
+Resources are documents a client can read by URI and attach to a conversation.
+
+| URI | What it is |
+| --- | --- |
+| `starholder://ham` | The public [discovery](/docs/discovery) document: the API, the caller directory, this server, and the workflows |
+| `starholder://mcp/changelog` | What changed in this server, newest first |
+| `starholder://world/{worldId}/entity/{ref}` | An entity, as `world_get_content` with `view: "entity"` returns it |
+| `starholder://world/{worldId}/setting/{ref}` | A setting, as `world_get_content` with `view: "setting"` returns it |
+| `starholder://world/{worldId}/textroot/{ref}` | A published story, as `world_get_content` with `view: "textroot"` returns it |
+| `starholder://world/{worldId}/gaps` | A world's gaps, as `gap_list` returns them |
+
+A templated resource is read through its tool's route with your credential, under the same checks. A URI that matches nothing, or that the route answers with `404`, is `-32602` "Resource not found".
+
+## Prompts
+
+The prompts are Starholder's [workflow recipes](/docs/discovery) written out as tool calls: `story-publish`, `world-find`, `world-talk`, `bounty-fulfill`, `star-read`, and `jobs-poll`. Each one states the workflow's rules and then each step as the tool to call, the arguments it takes, when it applies, and when to move on. Its arguments, such as `worldId`, are optional; any you give are written into the text. `prompts/list` shows the prompts whose required steps your credential can call.
 
 ## World access
 
-Every world-scoped tool takes a `worldId`. The world's policy applies exactly as it does on the route: `query_world` needs the world to allow external reads (`externalAgentReadEnabled`), and `execute_turn`, `execute_turn_async`, and `propose_inference` need it to allow external access (`externalAgentAccessEnabled`). Your [caller directory](/docs/discovery#3-your-caller-directory) lists these as `callTimeChecks`.
+Every world-scoped tool takes a `worldId`. The world's policy applies exactly as it does on the route: `world_search` needs a world you can read (you own it, its read policy is public, or you are a member), and `turn_execute` and `turn_execute_async` need a world you own. Your [caller directory](/docs/discovery#3-your-caller-directory) lists these as `callTimeChecks`.
 
-`execute_turn` and `direct_persona` return the turn's final result, as their routes do; neither route streams. To watch a turn unfold as it is written, continue a chat room turn on a [room stream](/docs/guides/sse-streaming#room-streams).
+`turn_execute` and `persona_direct` return the turn's final result, as their routes do; neither route streams. To watch a turn unfold as it is written, continue a chat room turn on a [room stream](/docs/guides/sse-streaming#room-streams) over the REST route.
 
-## Tools
+`huelva_ask` is the research tool: ask Huelva in plain words, name a world by its handle (`@owner/world`) or send its `worldId`, and send the same `worldId`, or none, on follow-ups to stay in one conversation. Huelva can take minutes, so the server reads her route's [stream](/docs/guides/sse-streaming#an-ask-to-huelva-outside-a-room) and returns the reply it settles on, exactly as a plain call would. `structuredContent.shell.result.kind` says what came back: an answer with citations, a question for your next ask, a finding that the evidence is not there, or staged work. An ask runs no staged work. One action returns `responseKind: "proposal"`; once the person decides, `huelva_followthrough` sends the `huelvaAsk` from its `confirm.approveBody` or `confirm.rejectBody`. A plan is decided with a `plan_followthrough` ask naming its `planId`. Deciding needs `world:write`, so a connection without it does not list `huelva_followthrough`. [Working with Huelva](/docs/guides/huelva) covers the whole lane.
 
-The [Tool Catalog](/docs/mcp-reference/tools) lists every tool, generated from the server's own definitions: the scopes and capability each one needs, the route it calls, its mutation class, its idempotency field, and its argument schema.
+## Rooms
+
+The room tools call the room routes, so they act as those routes treat any API key, and the routes treat it two ways.
+
+The tools that read or post a room's conversation act as the connection's own participant, `agent:<keyId>`: never you and never a room-link seat, and a participant only in rooms it has been added to. These are `room_get` with `view` `"room"`, `"callable"`, `"signals"`, `"addons"` or `"feed"`, `room_get_history`, `room_search` with `view: "room"`, `room_continue`, `room_post_message`, `room_delete_message`, `room_set_signal`, `room_ask_huelva` and `room_huelva_followthrough`. Called in a room the connection has not been added to, they answer `403` "not a room participant".
+
+Every other room tool acts as you, as your session would: `room_list` lists your rooms; `room_open` and `room_open_world_line` open rooms with you as the initiator; `room_search` with `view: "rooms"` and `room_search_people` search as you; `room_get` with `view: "management"`, `room_update`, `room_invite`, `room_change_participation`, the voice and world tools, `room_export_summary` and `room_branch_work` manage a room as you, in rooms you take part in; and `room_answer_request`, `room_respond_to_invite` and `room_revoke_invite` answer for you.
+
+`room_get` reads a room (`view: "room"`, `"management"`, `"callable"`, `"signals"`, `"addons"` or `"feed"`), `room_get_history` pages through its messages, and `room_search` with `view: "room"` searches one room.
+
+`room_continue` posts your message and returns the room's reply; `room_post_message` posts without one, or reacts to, pins or edits messages. `room_ask_huelva` asks Huelva privately in the room, and `room_huelva_followthrough` decides what she staged there. Deleting messages, revoking an invite, leaving or removing someone, and removing a voice or a world are separate tools marked destructive, and their routes ask for [confirmation](#confirmation) first.
+
+A room tool that changes anything needs `world:write`, so a read-only connection can read and search rooms but not post, invite or leave. Invite links (`/api/v1/chat/external-agent-invites/{inviteToken}`) are not tools: the token in the link is their credential, and an MCP connection always calls with its own.
+
+## Changes in 3.0
+
+Version 3.0 (October 8, 2026) made the list shorter without removing anything a tool could do. Reads about the same noun became one tool with a `view` argument, and the read tools those views replace are withdrawn: list the tools again rather than mapping names. Rooms joined as the `room_` tools. Annotations state only what differs from the defaults, and an argument the route ignores is no longer offered.
+
+## Changes in 2.0
+
+Version 2.0 (October 7, 2026) replaced the earlier server. It speaks only MCP `2026-07-28`, so `initialize`, `ping`, batches, and the `2025-06-18`, `2025-03-26`, and `2024-11-05` revisions are no longer accepted. Tools were renamed once, to the domain-first names above, and the earlier names (`query_world`, `execute_turn`, `submit_narrative`, `post_bounty`, and the rest) are withdrawn; list the tools again rather than mapping names. The catalog grew from the first server's 34 hand-written tools to every operation a key can call. The `starholder://mcp/changelog` resource records each change.

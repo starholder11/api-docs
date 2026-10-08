@@ -671,12 +671,15 @@ description: "30 operations tagged chat."
 
 **Authorization** (room runtime, CHAT §4.5b): the caller's identity must be any authenticated caller.
 
+**Confirmation.** This operation deletes data. For a request whose body action is 'revoke', the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
+
 **Parameters**
 
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `inviteId` | path | yes | string | Room invite id ('invite_...'). |
 | `X-Correlation-Id` | header | no | string | Copied into auth error.correlationId. |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -901,6 +904,16 @@ description: "30 operations tagged chat."
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **500**: 'invite &lt;id&gt; is not pending', 'only the invited party may accept this invite', 'only the invited party may decline this invite', 'only the room owner may revoke this invite', grant validation errors.
 
   `application/json`
@@ -919,7 +932,17 @@ description: "30 operations tagged chat."
   }
   ```
 
-**Schemas used:** [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatInviteRow`](/docs/reference/schemas#chatinviterow), [`ChatMembershipDecisionRecord`](/docs/reference/schemas#chatmembershipdecisionrecord), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot)
+- **503**: ERR_CONFIRMATION_UNAVAILABLE: the server cannot record that a confirmation was used, so the delete did not run. Retryable.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/ConfirmationUnavailable`](/docs/reference/schemas##/components/responses/confirmationunavailable), [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatInviteRow`](/docs/reference/schemas#chatinviterow), [`ChatMembershipDecisionRecord`](/docs/reference/schemas#chatmembershipdecisionrecord), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot)
 
 <sub>Contract authored from `app/api/v1/chat/invites/[inviteId]/route.ts` (confidence: high).</sub>
 
@@ -2845,7 +2868,8 @@ Accept header contains 'text/event-stream'. The stream opens before body validat
       "type": "array",
       "items": {
         "$ref": "#/components/schemas/ChatMessageMutation"
-      }
+      },
+      "description": "Never applied here: continueRoom counts it as authored payload but applies no operation. Apply message operations with POST /messages."
     },
     "lane": {
       "const": "huelva",
@@ -3694,12 +3718,15 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
 
 **Authorization** (room runtime, CHAT §4.5b): the caller's identity must be the room owner or a room manager.
 
+**Confirmation.** This operation deletes data. For a request whose body action is 'remove', the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
+
 **Parameters**
 
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `chatRoomId` | path | yes | string | Room id. |
 | `X-Correlation-Id` | header | no | string | Copied into auth errors. |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -3945,6 +3972,16 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **500**: Other errors.
 
   `application/json`
@@ -3963,7 +4000,17 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
-**Schemas used:** [`ChatDialogueScene`](/docs/reference/schemas#chatdialoguescene), [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatImportedVoiceBinding`](/docs/reference/schemas#chatimportedvoicebinding), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot)
+- **503**: ERR_CONFIRMATION_UNAVAILABLE: the server cannot record that a confirmation was used, so the delete did not run. Retryable.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/ConfirmationUnavailable`](/docs/reference/schemas##/components/responses/confirmationunavailable), [`ChatDialogueScene`](/docs/reference/schemas#chatdialoguescene), [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatImportedVoiceBinding`](/docs/reference/schemas#chatimportedvoicebinding), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot)
 
 <sub>Contract authored from `app/api/v1/chat/rooms/[chatRoomId]/imported-voices/route.ts` (confidence: high).</sub>
 
@@ -4566,12 +4613,15 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
 
 **Authorization** (room runtime, CHAT §4.5b): the caller's identity must be a participant of the room; a room link with `post` access is accepted.
 
+**Confirmation.** This operation deletes data. For a request whose body has an operations entry with kind 'delete', the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
+
 **Parameters**
 
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `chatRoomId` | path | yes | string | Room id. |
 | `X-Correlation-Id` | header | no | string | Copied into auth errors. |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -4945,6 +4995,16 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **500**: \{status:'error', message\} for 'room message requires text or at least one attachment' (400 on /continue, 500 here), 'message operations may not be mixed with a new authored message', 'message &lt;id&gt; is not part of room &lt;room&gt;', interaction-not-allowed errors; KSLP_CHAT_SNAPSHOT_INVALID as \{error:\{code,message\}\}.
 
   `application/json`
@@ -4975,30 +5035,37 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
-- **503**: KSLP_CHAT_MESSAGE_COMMIT_FAILED.
+- **503**: KSLP_CHAT_MESSAGE_COMMIT_FAILED. Also ERR_CONFIRMATION_UNAVAILABLE, in the standard error envelope, when the server cannot record that a confirmation was used; the delete did not run. Error codes: `ERR_CONFIRMATION_UNAVAILABLE`.
 
   `application/json`
 
   ```json
   {
-    "type": "object",
-    "properties": {
-      "error": {
+    "oneOf": [
+      {
         "type": "object",
         "properties": {
-          "code": {
-            "const": "KSLP_CHAT_MESSAGE_COMMIT_FAILED"
-          },
-          "message": {
-            "type": "string"
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "const": "KSLP_CHAT_MESSAGE_COMMIT_FAILED"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
           }
         }
+      },
+      {
+        "$ref": "#/components/schemas/AesErrorEnvelope"
       }
-    }
+    ]
   }
   ```
 
-**Schemas used:** [`ChatFeedEntry`](/docs/reference/schemas#chatfeedentry), [`ChatStoredMessageRecord`](/docs/reference/schemas#chatstoredmessagerecord)
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`AesErrorEnvelope`](/docs/reference/schemas#aeserrorenvelope), [`ChatFeedEntry`](/docs/reference/schemas#chatfeedentry), [`ChatStoredMessageRecord`](/docs/reference/schemas#chatstoredmessagerecord)
 
 <sub>Contract authored from `app/api/v1/chat/rooms/[chatRoomId]/messages/route.ts` (confidence: high).</sub>
 
@@ -5012,12 +5079,15 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
 
 **Authorization** (room runtime, CHAT §4.5b): the caller's identity must be a participant of the room.
 
+**Confirmation.** This operation deletes data. For a request whose body action is one of 'leave', 'remove', 'revoke_external_agent_room_grant', the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
+
 **Parameters**
 
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `chatRoomId` | path | yes | string | Room id. |
 | `X-Correlation-Id` | header | no | string | Copied into auth errors. |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -5205,6 +5275,16 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **500**: 'participants may only leave on their own behalf', 'participant &lt;ref&gt; is not currently standing in room &lt;room&gt;', 'only the standing room owner may perform this mutation', 'the room owner may not be removed', 'unknown room grant &lt;ref&gt;', 'room grant &lt;ref&gt; is not active'.
 
   `application/json`
@@ -5223,7 +5303,17 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
-**Schemas used:** [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatMembershipDecisionRecord`](/docs/reference/schemas#chatmembershipdecisionrecord), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot)
+- **503**: ERR_CONFIRMATION_UNAVAILABLE: the server cannot record that a confirmation was used, so the delete did not run. Retryable.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/ConfirmationUnavailable`](/docs/reference/schemas##/components/responses/confirmationunavailable), [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatMembershipDecisionRecord`](/docs/reference/schemas#chatmembershipdecisionrecord), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot)
 
 <sub>Contract authored from `app/api/v1/chat/rooms/[chatRoomId]/participants/route.ts` (confidence: high).</sub>
 
@@ -6318,12 +6408,15 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
 
 **Authorization** (room runtime, CHAT §4.5b): the caller's identity must be the room owner or a room manager.
 
+**Confirmation.** This operation deletes data. For a request whose body action is 'remove', the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
+
 **Parameters**
 
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `chatRoomId` | path | yes | string | Room id. |
 | `X-Correlation-Id` | header | no | string | Copied into auth errors. |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -6519,6 +6612,16 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **500**: 'only the standing room owner may perform this mutation' and other service errors.
 
   `application/json`
@@ -6537,7 +6640,17 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
-**Schemas used:** [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatMembershipDecisionRecord`](/docs/reference/schemas#chatmembershipdecisionrecord), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot), [`ChatWorldAdmissionRecord`](/docs/reference/schemas#chatworldadmissionrecord)
+- **503**: ERR_CONFIRMATION_UNAVAILABLE: the server cannot record that a confirmation was used, so the delete did not run. Retryable.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/ConfirmationUnavailable`](/docs/reference/schemas##/components/responses/confirmationunavailable), [`ChatFeedEvent`](/docs/reference/schemas#chatfeedevent), [`ChatMembershipDecisionRecord`](/docs/reference/schemas#chatmembershipdecisionrecord), [`ChatRoomHeadSnapshot`](/docs/reference/schemas#chatroomheadsnapshot), [`ChatWorldAdmissionRecord`](/docs/reference/schemas#chatworldadmissionrecord)
 
 <sub>Contract authored from `app/api/v1/chat/rooms/[chatRoomId]/worlds/route.ts` (confidence: high).</sub>
 
@@ -6698,11 +6811,11 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
 
 `GET /api/v1/chat/users/search`
 
-**Typeahead search for users to invite (browser session only).** Searches the live user profile corpus (Neo4j User nodes, with a ham_users fallback) by handle, user space, or display name, excluding the caller, and returns up to `limit` users. An empty q returns \{users: []\} without searching. Read-only.
+**Typeahead search for users to invite.** Searches the live user profile corpus (Neo4j User nodes, with a ham_users fallback) by handle, user space, or display name, excluding the caller, and returns up to `limit` users. An empty q returns \{users: []\} without searching. Read-only.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session only; an API key or room-link token answers 401.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
-**Authorization** (room runtime, CHAT §4.5b): the caller's identity must be a signed-in browser session.
+**Authorization** (room runtime, CHAT §4.5b): the caller's identity must be any authenticated caller.
 
 **Parameters**
 
@@ -6750,34 +6863,51 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
   }
   ```
 
-- **401**: No x-user-id (middleware \{error:'unauthorized'\} for cookie-less non-Bearer requests, or handler \{error:'Authentication required'\}).
+- **401**: Middleware or dispatcher authentication failure.
+
+  `application/json`
+
+  ```json
+  {
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "error": {
+            "const": "unauthorized"
+          }
+        }
+      },
+      {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "error"
+          },
+          "error": {
+            "type": "object"
+          }
+        }
+      }
+    ]
+  }
+  ```
+
+- **403**: identity has no userId.
 
   `application/json`
 
   ```json
   {
     "type": "object",
-    "required": [
-      "error"
-    ],
     "properties": {
+      "status": {
+        "const": "forbidden"
+      },
       "error": {
-        "enum": [
-          "unauthorized",
-          "Authentication required"
-        ]
+        "const": "identity has no userId"
       }
     }
-  }
-  ```
-
-- **403**: Credential is valid but the policy denies this request. ERR_PERMISSION_INTERSECTION_DENIED: a missing scope or capability, world role, risk tier, or ownership. ERR_AUTH_FORBIDDEN: the actor kind is not allowed on this operation. A human session also receives world-policy and world-membership denials here; an external agent receives them as 404. error.details.reason names the denial.
-
-  `application/json`
-
-  ```json
-  {
-    "$ref": "#/components/schemas/AesErrorEnvelope"
   }
   ```
 
@@ -6798,8 +6928,6 @@ Accept contains 'text/event-stream'. Validation, room lookup, authorization, and
     }
   }
   ```
-
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden)
 
 <sub>Contract authored from `app/api/v1/chat/users/search/route.ts` (confidence: high).</sub>
 

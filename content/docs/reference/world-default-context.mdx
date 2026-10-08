@@ -11,11 +11,11 @@ description: "1 operation tagged world.default-context."
 
 **Get the caller's default ('main') world context.** Returns the caller's own default world (the world named 'main' they own) as a management row with relationship, read/publish capability, visibility and lifecycle, plus its worldId and handle. Intended for post-signup and shell bootstrap. Read-only.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_default_context_get`: callers `human`; mutation class `none`.
+- `world_default_context_get`: callers `human`, `external_agent`; scopes `world:read`; mutation class `none`.
 
 **Responses**
 

@@ -11,11 +11,11 @@ description: "3 operations tagged world.bookmarks."
 
 **List the caller's world bookmarks.** Returns all of the caller's world bookmarks, newest first, from the Postgres bookmark mirror. A bookmark is only a pointer and confers no access to the world. Read-only.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_bookmarks_get`: callers `human`; mutation class `none`.
+- `world_bookmarks_get`: callers `human`, `external_agent`; scopes `world:read`; mutation class `none`.
 
 **Responses**
 
@@ -110,11 +110,11 @@ description: "3 operations tagged world.bookmarks."
 
 **Bookmark a world.** Adds a bookmark for a world the caller can currently read or has a pending invite to. Writes the canonical bookmark JSON to storage, mirrors it in Postgres, and upserts a rebuildable graph edge. Idempotent: if the caller already bookmarked the world, returns 200 with the existing bookmarkId and code already_bookmarked.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_bookmarks_post`: callers `human`; scopes `world:write`; mutation class `none`.
+- `world_bookmarks_post`: callers `human`, `external_agent`; scopes `world:write`; mutation class `none`.
 
 **Request body** (`application/json`, required)
 
@@ -272,11 +272,19 @@ description: "3 operations tagged world.bookmarks."
 
 **Remove a world bookmark.** Removes one of the caller's bookmarks by bookmarkId, deleting the stored bookmark JSON, the Postgres mirror row, and the graph edge. The bookmarkId is sent in a JSON request body on the DELETE. Not idempotent: a second call returns 404.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_bookmarks_delete`: callers `human`; scopes `world:write`; mutation class `none`.
+- `world_bookmarks_delete`: callers `human`, `external_agent`; scopes `world:write`; mutation class `none`.
+
+**Confirmation.** This operation deletes data. For every request, the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
+
+**Parameters**
+
+| Name | In | Required | Type | Description |
+| --- | --- | --- | --- | --- |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -383,6 +391,16 @@ description: "3 operations tagged world.bookmarks."
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **429**: Per-key or per-actor quota exceeded (ERR_QUOTA_EXCEEDED). Honor Retry-After.
 
   `application/json`
@@ -408,6 +426,16 @@ description: "3 operations tagged world.bookmarks."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated)
+- **503**: ERR_CONFIRMATION_UNAVAILABLE: the server cannot record that a confirmation was used, so the delete did not run. Retryable.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/ConfirmationUnavailable`](/docs/reference/schemas##/components/responses/confirmationunavailable), [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated)
 
 <sub>Contract authored from `app/api/v1/world/bookmarks/route.ts` (confidence: high).</sub>

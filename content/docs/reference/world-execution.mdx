@@ -15,7 +15,7 @@ description: "8 operations tagged world.execution."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_consult_sync`: callers `external_agent`; scopes `world:read`; capability `canQuery`; risk tier T0 or higher; world policy `externalAgentReadEnabled` must be on (checked for `external_agent`); mutation class `none`.
+- `world_consult_sync`: callers `external_agent`; scopes `world:read`; capability `canQuery`; risk tier T0 or higher; world policy `externalAgentReadEnabled`: the caller can read the world (checked for `external_agent`); mutation class `none`.
 
 **Parameters**
 
@@ -172,7 +172,7 @@ description: "8 operations tagged world.execution."
   }
   ```
 
-- **404**: ERR_WORLD_POLICY_DENIED: the world's policy does not enable the flag this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag). Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
+- **404**: ERR_WORLD_POLICY_DENIED: the key owner's relationship to the world does not pass the check this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag): externalAgentReadEnabled needs a world the owner can read, externalAgentAccessEnabled a world the owner owns. Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
 
   `application/json`
 
@@ -474,7 +474,7 @@ description: "8 operations tagged world.execution."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_execute_sync`: callers `external_agent`, `persona`; scopes `world:write`, `inference:propose`; capability `canExecuteFlows`; risk tier T1 or higher; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `inference_propose`.
+- `world_execute_sync`: callers `external_agent`, `persona`; scopes `world:write`, `inference:propose`; capability `canExecuteFlows`; risk tier T1 or higher; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `inference_propose`.
 
 **Parameters**
 
@@ -707,7 +707,7 @@ description: "8 operations tagged world.execution."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_execute_async`: callers `external_agent`, `persona`; scopes `world:write`, `inference:propose`; capability `canExecuteFlows`; risk tier T1 or higher; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `inference_propose`.
+- `world_execute_async`: callers `external_agent`, `persona`; scopes `world:write`, `inference:propose`; capability `canExecuteFlows`; risk tier T1 or higher; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `inference_propose`.
 
 **Parameters**
 
@@ -862,7 +862,7 @@ description: "8 operations tagged world.execution."
   }
   ```
 
-- **404**: ERR_WORLD_POLICY_DENIED: the world's policy does not enable the flag this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag). Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
+- **404**: ERR_WORLD_POLICY_DENIED: the key owner's relationship to the world does not pass the check this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag): externalAgentReadEnabled needs a world the owner can read, externalAgentAccessEnabled a world the owner owns. Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
 
   `application/json`
 
@@ -936,7 +936,7 @@ description: "8 operations tagged world.execution."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_query`: callers `external_agent`; scopes `world:read`; capability `canQuery`; risk tier T0 or higher; world policy `externalAgentReadEnabled` must be on (checked for `external_agent`); mutation class `none`.
+- `world_query`: callers `external_agent`; scopes `world:read`; capability `canQuery`; risk tier T0 or higher; world policy `externalAgentReadEnabled`: the caller can read the world (checked for `external_agent`); mutation class `none`.
 
 **Parameters**
 
@@ -1092,7 +1092,7 @@ description: "8 operations tagged world.execution."
   }
   ```
 
-- **404**: ERR_WORLD_POLICY_DENIED: the world's policy does not enable the flag this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag). Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
+- **404**: ERR_WORLD_POLICY_DENIED: the key owner's relationship to the world does not pass the check this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag): externalAgentReadEnabled needs a world the owner can read, externalAgentAccessEnabled a world the owner owns. Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
 
   `application/json`
 
@@ -1146,7 +1146,7 @@ description: "8 operations tagged world.execution."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_session_messages_get`: callers `human`, `external_agent`; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `none`.
+- `world_session_messages_get`: callers `human`, `external_agent`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `none`.
 
 **Parameters**
 
@@ -1311,7 +1311,7 @@ description: "8 operations tagged world.execution."
   }
   ```
 
-- **404**: ERR_WORLD_POLICY_DENIED: the world's policy does not enable the flag this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag). Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
+- **404**: ERR_WORLD_POLICY_DENIED: the key owner's relationship to the world does not pass the check this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag): externalAgentReadEnabled needs a world the owner can read, externalAgentAccessEnabled a world the owner owns. Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
 
   `application/json`
 
@@ -1387,7 +1387,7 @@ description: "8 operations tagged world.execution."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_session_turns_get`: callers `human`, `external_agent`; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `none`.
+- `world_session_turns_get`: callers `human`, `external_agent`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `none`.
 
 **Parameters**
 
@@ -1531,7 +1531,7 @@ description: "8 operations tagged world.execution."
   }
   ```
 
-- **404**: ERR_WORLD_POLICY_DENIED: the world's policy does not enable the flag this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag). Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
+- **404**: ERR_WORLD_POLICY_DENIED: the key owner's relationship to the world does not pass the check this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag): externalAgentReadEnabled needs a world the owner can read, externalAgentAccessEnabled a world the owner owns. Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
 
   `application/json`
 
@@ -1607,7 +1607,7 @@ description: "8 operations tagged world.execution."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_stream`: callers `human`, `external_agent`; scopes `world:read`; capability `canQuery`; world policy `externalAgentReadEnabled` must be on (checked for `external_agent`); mutation class `none`.
+- `world_stream`: callers `human`, `external_agent`; scopes `world:read`; capability `canQuery`; world policy `externalAgentReadEnabled`: the caller can read the world (checked for `external_agent`); mutation class `none`.
 
 **Parameters**
 
@@ -1698,7 +1698,7 @@ description: "8 operations tagged world.execution."
   }
   ```
 
-- **404**: ERR_WORLD_POLICY_DENIED: the world's policy does not enable the flag this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag). Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
+- **404**: ERR_WORLD_POLICY_DENIED: the key owner's relationship to the world does not pass the check this operation requires for external agents (x-starholder-auth requiresWorldPolicyFlag): externalAgentReadEnabled needs a world the owner can read, externalAgentAccessEnabled a world the owner owns. Sent as 404, not 403, so the response does not reveal the world's configuration. error.details.reason is world_policy_denied or world_policy_missing.
 
   `application/json`
 

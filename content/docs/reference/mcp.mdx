@@ -9,7 +9,7 @@ description: "1 operation tagged mcp."
 
 `POST /api/v1/mcp`
 
-**MCP Streamable HTTP endpoint (JSON-RPC 2.0, JSON response mode).** Model Context Protocol server for Starholder world tools. Send one JSON-RPC 2.0 message (or a batch array) per POST with the API key in X-Api-Key or Authorization: Bearer. Supported methods: initialize (negotiates protocolVersion 2025-06-18, 2025-03-26 or 2024-11-05), ping, tools/list (the tools this key may call), tools/call. Each tools/call runs through the same per-call gate and dispatches to the tool's bound /api/v1 route with the caller's key, so a tool can do exactly what its route allows for this key. Tool results use MCP content plus structuredContent; tool-level denials return isError: true. Notifications receive 202 with no body. The server is stateless (no Mcp-Session-Id) and does not offer a GET event stream.
+**MCP endpoint (protocol 2026-07-28, stateless, JSON responses).** Model Context Protocol server for Starholder: every operation an API key can call is a tool here, generated from this contract (AGENT_EXECUTION_STACK.md §9). Send one JSON-RPC 2.0 request per POST with the credential in X-Api-Key or Authorization: Bearer (an API key or an OAuth access token). There is no initialize handshake and no session: every request carries params._meta with io.modelcontextprotocol/protocolVersion 2026-07-28 and io.modelcontextprotocol/clientCapabilities, and the headers MCP-Protocol-Version (equal to the _meta version), Mcp-Method (equal to method) and, for tools/call, resources/read and prompts/get, Mcp-Name (equal to params.name or params.uri; =?base64?…?= for non-ASCII). Methods: server/discover, tools/list, tools/call, resources/list, resources/templates/list, resources/read, prompts/list, prompts/get. Each tools/call runs the tool's /api/v1 operation with the caller's credential, so a tool can do exactly what that route allows; the route's data is the result's structuredContent, and a route error is an isError result carrying the route's code, message and correlationId. A delete that needs confirmation answers resultType input_required with an elicitation, or returns a confirmationId to send back. Notifications receive 202 with no body. Batches, initialize, GET and DELETE are not supported.
 
 **Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used). A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
@@ -17,78 +17,99 @@ description: "1 operation tagged mcp."
 
 - `mcp_jsonrpc_post`: callers `external_agent`; mutation class `none`.
 
+**Parameters**
+
+| Name | In | Required | Type | Description |
+| --- | --- | --- | --- | --- |
+| `MCP-Protocol-Version` | header | yes | "2026-07-28" | Equal to params._meta's io.modelcontextprotocol/protocolVersion. |
+| `Mcp-Method` | header | yes | string | Equal to the JSON-RPC method. |
+| `Mcp-Name` | header | no | string | Required for external_agent callers (every MCP caller is one) on tools/call, resources/read and prompts/get: equal to params.name or params.uri; =?base64?&lt;base64&gt;?= when it is not plain ASCII. |
+
 **Request body** (`application/json`, required)
 
 ```json
 {
-  "oneOf": [
-    {
+  "type": "object",
+  "required": [
+    "jsonrpc",
+    "method"
+  ],
+  "properties": {
+    "jsonrpc": {
+      "const": "2.0"
+    },
+    "id": {
+      "type": [
+        "string",
+        "integer"
+      ],
+      "description": "Absent for a notification."
+    },
+    "method": {
+      "type": "string",
+      "examples": [
+        "server/discover",
+        "tools/list",
+        "tools/call",
+        "resources/read",
+        "prompts/get"
+      ]
+    },
+    "params": {
       "type": "object",
       "required": [
-        "jsonrpc",
-        "method"
+        "_meta"
       ],
       "properties": {
-        "jsonrpc": {
-          "const": "2.0"
-        },
-        "id": {
-          "type": [
-            "string",
-            "integer",
-            "null"
-          ]
-        },
-        "method": {
-          "type": "string",
-          "examples": [
-            "initialize",
-            "tools/list",
-            "tools/call",
-            "ping"
-          ]
-        },
-        "params": {
-          "type": "object"
-        }
-      }
-    },
-    {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": [
-          "jsonrpc",
-          "method"
-        ],
-        "properties": {
-          "jsonrpc": {
-            "const": "2.0"
-          },
-          "id": {
-            "type": [
-              "string",
-              "integer",
-              "null"
-            ]
-          },
-          "method": {
-            "type": "string"
-          },
-          "params": {
-            "type": "object"
+        "_meta": {
+          "type": "object",
+          "required": [
+            "io.modelcontextprotocol/protocolVersion",
+            "io.modelcontextprotocol/clientCapabilities"
+          ],
+          "properties": {
+            "io.modelcontextprotocol/protocolVersion": {
+              "const": "2026-07-28"
+            },
+            "io.modelcontextprotocol/clientCapabilities": {
+              "type": "object",
+              "description": "The client capabilities relevant to this request, such as elicitation."
+            },
+            "io.modelcontextprotocol/clientInfo": {
+              "type": "object",
+              "description": "Optional: { name, version }."
+            }
           }
+        },
+        "name": {
+          "type": "string",
+          "description": "tools/call and prompts/get."
+        },
+        "arguments": {
+          "type": "object",
+          "description": "tools/call: the tool's inputSchema; prompts/get: string arguments."
+        },
+        "uri": {
+          "type": "string",
+          "description": "resources/read."
+        },
+        "inputResponses": {
+          "type": "object",
+          "description": "tools/call retry after input_required: the answers keyed as the server asked."
+        },
+        "requestState": {
+          "type": "string",
+          "description": "tools/call retry after input_required: echoed unchanged."
         }
       }
     }
-  ]
+  }
 }
 ```
 
 **Responses**
 
-- **200**: JSON-RPC response (or array of responses for a batch). tools/call results: \{content:[\{type:"text",text\}], structuredContent, isError\}.
+- **200**: JSON-RPC response. Every result has resultType (complete or input_required) and _meta["io.modelcontextprotocol/serverInfo"]. tools/call results: \{content:[\{type:"text",text\}], structuredContent, isError\}.
 
   `application/json`
 
@@ -110,7 +131,9 @@ description: "1 operation tagged mcp."
           "null"
         ]
       },
-      "result": {},
+      "result": {
+        "type": "object"
+      },
       "error": {
         "type": "object",
         "required": [
@@ -120,7 +143,7 @@ description: "1 operation tagged mcp."
         "properties": {
           "code": {
             "type": "integer",
-            "description": "-32700 parse error, -32600 invalid request, -32601 method not found, -32602 invalid params or unknown tool, -32001 authentication, -32003 forbidden, -32029 rate limited, -32603 internal"
+            "description": "-32602 invalid params, unknown tool, resource or prompt; -32603 internal"
           },
           "message": {
             "type": "string"
@@ -132,8 +155,8 @@ description: "1 operation tagged mcp."
   }
   ```
 
-- **202**: Every message in the request was a notification; no body.
-- **400**: Body is not JSON (-32700) or not a JSON-RPC message (-32600).
+- **202**: The message was a notification; no body.
+- **400**: Not JSON (-32700); a batch, a non-request or a malformed request (-32600); a missing _meta field (-32602); a missing or mismatched MCP-Protocol-Version, Mcp-Method or Mcp-Name header (-32020); initialize or an unsupported version (-32022, data.supported lists 2026-07-28).
 
   `application/json`
 
@@ -143,7 +166,7 @@ description: "1 operation tagged mcp."
   }
   ```
 
-- **401**: No credential: middleware answers \{ "error": "unauthorized" \} before the route runs, not a JSON-RPC error. A key that fails validation: ERR_AUTH_INVALID in the AES error envelope. Neither carries WWW-Authenticate.
+- **401**: No credential: \{ "error": "unauthorized" \} with WWW-Authenticate naming the OAuth protected resource metadata. A credential that fails validation: ERR_AUTH_INVALID in the AES error envelope, with error="invalid_token" in the challenge.
 
   `application/json`
 
@@ -175,6 +198,16 @@ description: "1 operation tagged mcp."
   ```json
   {
     "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+- **404**: Unknown method (-32601).
+
+  `application/json`
+
+  ```json
+  {
+    "type": "object"
   }
   ```
 

@@ -15,7 +15,7 @@ description: "2 operations tagged world.star-seed."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_star_seed_hold`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `bounty_write`.
+- `world_star_seed_hold`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `bounty_write`.
 
 **Parameters**
 
@@ -461,7 +461,7 @@ description: "2 operations tagged world.star-seed."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_star_seed_return`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `bounty_write`.
+- `world_star_seed_return`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessBounties`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `bounty_write`.
 
 **Parameters**
 

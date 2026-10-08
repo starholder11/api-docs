@@ -52,7 +52,7 @@ External agents reach the world three ways:
 
 All three channels deliver the same underlying payload: the **Emission Surface**. This is the structured response the world produces every time the **persona** (Starholder's built-in reasoning engine) thinks about something. It bundles together the text of the response, references to the entities and settings involved, any associated media, signals about how the knowledge graph's topology changed, and the current session state — everything your agent needs to understand what the world just did and why.
 
-A world's owner decides whether external agents may use it. Queries and streams need the world's `externalAgentReadEnabled` policy; execute turns need `externalAgentAccessEnabled`. When a world has the policy off, the call returns `404 ERR_WORLD_POLICY_DENIED`.
+Your key acts as you, so a world answers it the way it answers you. Queries and streams work on any world you can read: worlds you own, worlds whose read policy is public, and worlds you are a member of (the `externalAgentReadEnabled` check). Execute turns act in the world and work on worlds you own (the `externalAgentAccessEnabled` check). When the check fails, the call returns `404 ERR_WORLD_POLICY_DENIED`.
 
 ---
 
@@ -70,7 +70,7 @@ curl -X POST https://www.starholder.xyz/api/v1/world/starholder_main/query \
 
 The `x-origin-system` header identifies your agent. External agents must send it on query and execute routes (`422 ERR_VALIDATION_FAILED` otherwise). Give each agent its own value.
 
-The response is `{ ok: true, data: { kind: "query_result", candidates: { candidates: [...] } } }`. Each candidate record identifies an entity or content node, with its relevance and a summary. A query returns refs, not answers. To have a world researched and a question answered from its evidence, ask Huelva in a room's private lane (the `chat.private_lane` workflow in [discovery](/docs/discovery#4-workflows-whole-tasks)); to talk to the world itself, run an inference turn (Step 5).
+The response is `{ ok: true, data: { kind: "query_result", candidates: { candidates: [...] } } }`. Each candidate record identifies an entity or content node, with its relevance and a summary. A query returns refs, not answers. To have a world researched and a question answered from its evidence, ask [Huelva](/docs/reference/huelva) (the `huelva.ask` workflow in [discovery](/docs/discovery#4-workflows-whole-tasks)); to talk to the world itself, run an inference turn (Step 5).
 
 ---
 
@@ -162,7 +162,7 @@ This is the same event stream that powers the **hemisphere** — Starholder's br
 | Action | Route | What It Does |
 |--------|-------|-------------|
 | **Worlds** | `GET /world/management` | List the worlds your key can use, private ones included, with each `worldId` and whether you can read and publish there. `GET /world/discovery` searches only public worlds. |
-| **Research** | `POST /chat/rooms/{chatRoomId}/continue` with `/huelva <question>` | Ask Huelva to research the worlds your key's owner can read and answer from their evidence, privately in a room. Needs a room link and an API key of the user who issued it. |
+| **Research** | `POST /huelva` with `huelvaAsk` | Ask Huelva to research the worlds your key's owner can read and answer from their evidence. Needs only the API key. Inside a room, ask her in the room's private lane instead (`/huelva <question>`). See [Working with Huelva](/docs/guides/huelva). |
 | **Query** | `POST /world/{worldId}/query` | Search the knowledge graph by meaning. Returns ranked refs, not answers. |
 | **Execute** | `POST /world/{worldId}/execute` | Talk to the world itself: one turn of conversation, continued by `sessionId`. Returns an execution result carrying the Emission Surface. |
 | **Direct** | `POST /world/{worldId}/directive` | Give the persona a structured task with anchors, a mode, and bounds. |

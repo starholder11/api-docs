@@ -9,13 +9,13 @@ description: "5 operations tagged kslp-radio."
 
 `GET /api/v1/kslp-radio/playlists`
 
-**List the caller's KSLP radio playlists.** Human only, through authorizeRouteRequest. The owner's username comes from x-user-space or the ham_users table. Lists the caller's playlists newest-updated first with an opaque keyset cursor. Read-only.
+**List the caller's KSLP radio playlists.** A human session or the owner's API key (account:read), through authorizeRouteRequest; a key lists its owner's playlists. The owner's username, which addresses the playlist storage, comes from the owner's HAM user record (ham_users) for every credential, never from a request header. Lists the caller's playlists newest-updated first with an opaque keyset cursor. Read-only.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `kslp_radio_playlists_get`: callers `human`; mutation class `none`.
+- `kslp_radio_playlists_get`: callers `human`, `external_agent`; scopes `account:read`; mutation class `none`.
 
 **Parameters**
 
@@ -46,7 +46,7 @@ description: "5 operations tagged kslp-radio."
   }
   ```
 
-- **401**: Also KSLP_AUTH_REQUIRED when the owner username cannot be resolved.
+- **401**: Also KSLP_AUTH_REQUIRED when the authorized identity names no user.
 
   `application/json`
 
@@ -81,6 +81,40 @@ description: "5 operations tagged kslp-radio."
   }
   ```
 
+- **500**: ERR_ACCOUNT_RECORD_MISSING: the API key's owner has no HAM user record. Opening the inbox once while signed in to Starholder creates it. This error uses the platform shape, not the KSLP shape.
+
+  `application/json`
+
+  ```json
+  {
+    "type": "object",
+    "required": [
+      "error"
+    ],
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "code": {
+            "const": "ERR_ACCOUNT_RECORD_MISSING"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "const": false
+          }
+        }
+      }
+    }
+  }
+  ```
+
 - **503**: KSLP_PLAYLIST_STORAGE_FAILED Error codes: `KSLP_PLAYLIST_STORAGE_FAILED`.
 
   `application/json`
@@ -99,13 +133,13 @@ description: "5 operations tagged kslp-radio."
 
 `POST /api/v1/kslp-radio/playlists`
 
-**Create a KSLP radio playlist (Idempotency-Key required).** Human only. Creates a playlist owned by the caller: the name is NFC-normalized and trimmed, and orderedRefs must be canonical refs. The Idempotency-Key header is required. Replaying the same key with the same request returns the stored playlist with replayed=true, and reusing the key with a different request returns 409. Writes are serialized with a Redis lock (15 s).
+**Create a KSLP radio playlist (Idempotency-Key required).** A human session or the owner's API key (account:write). Creates a playlist owned by the caller: the name is NFC-normalized and trimmed, and orderedRefs must be canonical refs. The Idempotency-Key header is required. Replaying the same key with the same request returns the stored playlist with replayed=true, and reusing the key with a different request returns 409. Writes are serialized with a Redis lock (15 s).
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `kslp_radio_playlists_post`: callers `human`; mutation class `none`.
+- `kslp_radio_playlists_post`: callers `human`, `external_agent`; scopes `account:write`; mutation class `none`.
 
 **Parameters**
 
@@ -219,6 +253,40 @@ description: "5 operations tagged kslp-radio."
   }
   ```
 
+- **500**: ERR_ACCOUNT_RECORD_MISSING: the API key's owner has no HAM user record. Opening the inbox once while signed in to Starholder creates it. This error uses the platform shape, not the KSLP shape.
+
+  `application/json`
+
+  ```json
+  {
+    "type": "object",
+    "required": [
+      "error"
+    ],
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "code": {
+            "const": "ERR_ACCOUNT_RECORD_MISSING"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "const": false
+          }
+        }
+      }
+    }
+  }
+  ```
+
 - **503**: KSLP_PLAYLIST_CONCURRENCY_BUSY or KSLP_PLAYLIST_STORAGE_FAILED Error codes: `KSLP_PLAYLIST_CONCURRENCY_BUSY`, `KSLP_PLAYLIST_STORAGE_FAILED`.
 
   `application/json`
@@ -237,13 +305,13 @@ description: "5 operations tagged kslp-radio."
 
 `GET /api/v1/kslp-radio/playlists/{playlistId}`
 
-**Get one of the caller's KSLP radio playlists.** Human only. Loads the playlist from the caller's owner-scoped storage. Another user's playlist is indistinguishable from a missing one and returns 404. Read-only.
+**Get one of the caller's KSLP radio playlists.** A human session or the owner's API key (account:read). Loads the playlist from the caller's owner-scoped storage. Another user's playlist is indistinguishable from a missing one and returns 404. Read-only.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `kslp_radio_playlists_item_get`: callers `human`; mutation class `none`.
+- `kslp_radio_playlists_item_get`: callers `human`, `external_agent`; scopes `account:read`; mutation class `none`.
 
 **Parameters**
 
@@ -316,6 +384,40 @@ description: "5 operations tagged kslp-radio."
   }
   ```
 
+- **500**: ERR_ACCOUNT_RECORD_MISSING: the API key's owner has no HAM user record. Opening the inbox once while signed in to Starholder creates it. This error uses the platform shape, not the KSLP shape.
+
+  `application/json`
+
+  ```json
+  {
+    "type": "object",
+    "required": [
+      "error"
+    ],
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "code": {
+            "const": "ERR_ACCOUNT_RECORD_MISSING"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "const": false
+          }
+        }
+      }
+    }
+  }
+  ```
+
 - **503**: KSLP_PLAYLIST_STORAGE_FAILED Error codes: `KSLP_PLAYLIST_STORAGE_FAILED`.
 
   `application/json`
@@ -334,13 +436,13 @@ description: "5 operations tagged kslp-radio."
 
 `PATCH /api/v1/kslp-radio/playlists/{playlistId}`
 
-**Update a playlist's name or refs with optimistic concurrency.** Human only. Requires the Idempotency-Key header and expectedRevision; the update applies only when expectedRevision equals the current revision, and the revision is then incremented. At least one of name or orderedRefs must be supplied. Replays are recognized only against the most recent mutation's key and request hash.
+**Update a playlist's name or refs with optimistic concurrency.** A human session or the owner's API key (account:write). Requires the Idempotency-Key header and expectedRevision; the update applies only when expectedRevision equals the current revision, and the revision is then incremented. At least one of name or orderedRefs must be supplied. Replays are recognized only against the most recent mutation's key and request hash.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `kslp_radio_playlists_item_patch`: callers `human`; mutation class `none`.
+- `kslp_radio_playlists_item_patch`: callers `human`, `external_agent`; scopes `account:write`; mutation class `none`.
 
 **Parameters**
 
@@ -478,6 +580,40 @@ description: "5 operations tagged kslp-radio."
   }
   ```
 
+- **500**: ERR_ACCOUNT_RECORD_MISSING: the API key's owner has no HAM user record. Opening the inbox once while signed in to Starholder creates it. This error uses the platform shape, not the KSLP shape.
+
+  `application/json`
+
+  ```json
+  {
+    "type": "object",
+    "required": [
+      "error"
+    ],
+    "properties": {
+      "error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "code": {
+            "const": "ERR_ACCOUNT_RECORD_MISSING"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "const": false
+          }
+        }
+      }
+    }
+  }
+  ```
+
 - **503**: KSLP_PLAYLIST_CONCURRENCY_BUSY or KSLP_PLAYLIST_STORAGE_FAILED Error codes: `KSLP_PLAYLIST_CONCURRENCY_BUSY`, `KSLP_PLAYLIST_STORAGE_FAILED`.
 
   `application/json`
@@ -496,19 +632,22 @@ description: "5 operations tagged kslp-radio."
 
 `DELETE /api/v1/kslp-radio/playlists/{playlistId}`
 
-**Delete a playlist at an expected revision.** Human only. Requires a JSON body containing expectedRevision, which is unusual for DELETE. The playlist is deleted only when expectedRevision matches the current revision. Deleting a missing or foreign playlist also returns 204. The Idempotency-Key header is not read.
+**Delete a playlist at an expected revision.** A human session or the owner's API key (account:write); a key's request is confirmation-gated. Requires a JSON body containing expectedRevision, which is unusual for DELETE. The playlist is deleted only when expectedRevision matches the current revision. Deleting a missing or foreign playlist also returns 204. The Idempotency-Key header is not read.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `kslp_radio_playlists_item_delete`: callers `human`; mutation class `none`.
+- `kslp_radio_playlists_item_delete`: callers `human`, `external_agent`; scopes `account:write`; mutation class `none`.
+
+**Confirmation.** This operation deletes data. For every request, the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
 
 **Parameters**
 
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `playlistId` | path | yes | string |  |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -585,16 +724,33 @@ description: "5 operations tagged kslp-radio."
   }
   ```
 
-- **503**: KSLP_PLAYLIST_CONCURRENCY_BUSY or KSLP_PLAYLIST_STORAGE_FAILED Error codes: `KSLP_PLAYLIST_CONCURRENCY_BUSY`, `KSLP_PLAYLIST_STORAGE_FAILED`.
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
 
   `application/json`
 
   ```json
   {
-    "$ref": "#/components/schemas/KslpApiErrorV1"
+    "$ref": "#/components/schemas/ConfirmationChallenge"
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`KslpApiErrorV1`](/docs/reference/schemas#kslpapierrorv1)
+- **503**: KSLP_PLAYLIST_CONCURRENCY_BUSY or KSLP_PLAYLIST_STORAGE_FAILED Also ERR_CONFIRMATION_UNAVAILABLE, in the standard error envelope, when the server cannot record that a confirmation was used; the delete did not run. Error codes: `KSLP_PLAYLIST_CONCURRENCY_BUSY`, `KSLP_PLAYLIST_STORAGE_FAILED`, `ERR_CONFIRMATION_UNAVAILABLE`.
+
+  `application/json`
+
+  ```json
+  {
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/KslpApiErrorV1"
+      },
+      {
+        "$ref": "#/components/schemas/AesErrorEnvelope"
+      }
+    ]
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`AesErrorEnvelope`](/docs/reference/schemas#aeserrorenvelope), [`KslpApiErrorV1`](/docs/reference/schemas#kslpapierrorv1)
 
 <sub>Contract authored from `app/api/v1/kslp-radio/playlists/[playlistId]/route.ts` (confidence: high).</sub>

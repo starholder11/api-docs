@@ -11,11 +11,11 @@ description: "3 operations tagged world.invites."
 
 **List pending world invites received by or sent from the caller.** Lists pending world invites, newest first. perspective=received (default) returns invites addressed to the caller; perspective=sent returns invites the caller issued for the given world and requires the caller to own it. Before listing, overdue pending invites in scope are marked expired (and their inbox rows synced), so this GET can mutate invite state.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_invites_get`: callers `human`; mutation class `none`.
+- `world_invites_get`: callers `human`, `external_agent`; scopes `world:read`; mutation class `none`.
 
 **Parameters**
 
@@ -150,11 +150,11 @@ description: "3 operations tagged world.invites."
 
 **Invite a user to a world you own.** Issues a direct-user invite to a world the caller owns, proposing a viewer or editor role, with an optional message and expiry. The world may be given by worldId or by handle '@owner/worldName'; the invitee by platform user id (preferred) or by a username that is matched case-insensitively against username, display name, contact email, or user id. Creates the invite and the invitee's inbox row in one transaction. Structurally idempotent: a second pending invite for the same world, user and role returns 409.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_invites_post`: callers `human`; scopes `world:write`; mutation class `none`.
+- `world_invites_post`: callers `human`, `external_agent`; scopes `world:write`; mutation class `none`.
 
 **Request body** (`application/json`, required)
 
@@ -379,17 +379,20 @@ description: "3 operations tagged world.invites."
 
 **Accept, decline, revoke or expire a world invite.** Applies a lifecycle action to a world invite. accept (invitee only) closes the invite and creates or reactivates an active membership with the proposed role; decline (invitee only) closes it; revoke (issuing owner only) closes it with an optional reason; expire marks an overdue pending invite expired. Each transition also syncs the invitee's inbox row. Terminal invites return 409; a pending invite whose expiry has passed is treated as terminal 'expired' for accept/decline/revoke.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_invite_lifecycle_patch`: callers `human`; scopes `world:write`; mutation class `none`.
+- `world_invite_lifecycle_patch`: callers `human`, `external_agent`; scopes `world:write`; mutation class `none`.
+
+**Confirmation.** This operation deletes data. For a request whose body action is 'revoke', the first request changes nothing and answers `428` with what it would remove; resending the identical request with `X-Starholder-Confirmation: <confirmationId>` within 5 minutes runs it once. See [Delete confirmation](/docs/authentication#delete-confirmation).
 
 **Parameters**
 
 | Name | In | Required | Type | Description |
 | --- | --- | --- | --- | --- |
 | `inviteId` | path | yes | string |  |
+| `X-Starholder-Confirmation` | header | no | string | The confirmationId from this operation's 428 response. Send it with the otherwise identical request to execute that request once. |
 
 **Request body** (`application/json`, required)
 
@@ -559,6 +562,16 @@ description: "3 operations tagged world.invites."
   }
   ```
 
+- **428**: The request deletes data and nothing was changed. ERR_CONFIRMATION_REQUIRED: X-Starholder-Confirmation was not sent. ERR_CONFIRMATION_INVALID, ERR_CONFIRMATION_EXPIRED or ERR_CONFIRMATION_USED: the confirmation sent does not match this caller, operation and request, has expired, or was already used; the response carries a fresh one. confirmation.impact states what the request removes. To proceed, send confirmation.confirm (the same method, path and body) with its X-Starholder-Confirmation header before confirmation.expiresAt; it executes once.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/ConfirmationChallenge"
+  }
+  ```
+
 - **429**: Per-key or per-actor quota exceeded (ERR_QUOTA_EXCEEDED). Honor Retry-After.
 
   `application/json`
@@ -584,6 +597,16 @@ description: "3 operations tagged world.invites."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`WorldMembershipRow`](/docs/reference/schemas#worldmembershiprow)
+- **503**: ERR_CONFIRMATION_UNAVAILABLE: the server cannot record that a confirmation was used, so the delete did not run. Retryable.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/ConfirmationRequired`](/docs/reference/schemas##/components/responses/confirmationrequired), [`#/components/responses/ConfirmationUnavailable`](/docs/reference/schemas##/components/responses/confirmationunavailable), [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`WorldMembershipRow`](/docs/reference/schemas#worldmembershiprow)
 
 <sub>Contract authored from `app/api/v1/world/invites/[inviteId]/route.ts` (confidence: high).</sub>

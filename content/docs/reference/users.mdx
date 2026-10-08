@@ -11,11 +11,11 @@ description: "1 operation tagged users."
 
 **Search the user directory by handle or user space.** Searches the platform user directory for the query (trimmed and lowercased), excluding the caller, and returns ranked candidates plus a resolution verdict (resolved, excluded_self, no_match, or ambiguous). An empty query returns an empty no_match result without searching. Read-only. Search failures are swallowed and reported as an empty no_match result with 200.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `users_search_get`: callers `human`; mutation class `none`.
+- `users_search_get`: callers `human`, `external_agent`; scopes `account:read`; mutation class `none`.
 
 **Parameters**
 
@@ -36,18 +36,28 @@ description: "1 operation tagged users."
   }
   ```
 
-- **401**: No authenticated session user (middleware-injected x-user-id absent).
+- **401**: Also returned by the handler when the identity has no user id.
 
   `application/json`
 
   ```json
   {
-    "type": "object",
-    "properties": {
-      "error": {
-        "const": "Authentication required"
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/AesErrorEnvelope"
+      },
+      {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "const": "unauthorized"
+          }
+        }
       }
-    }
+    ]
   }
   ```
 
@@ -61,6 +71,16 @@ description: "1 operation tagged users."
   }
   ```
 
-**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`UserLookupResponsePayload`](/docs/reference/schemas#userlookupresponsepayload)
+- **429**: Per-key or per-actor quota exceeded (ERR_QUOTA_EXCEEDED). Honor Retry-After.
+
+  `application/json`
+
+  ```json
+  {
+    "$ref": "#/components/schemas/AesErrorEnvelope"
+  }
+  ```
+
+**Schemas used:** [`#/components/responses/Forbidden`](/docs/reference/schemas##/components/responses/forbidden), [`#/components/responses/RateLimited`](/docs/reference/schemas##/components/responses/ratelimited), [`#/components/responses/Unauthenticated`](/docs/reference/schemas##/components/responses/unauthenticated), [`UserLookupResponsePayload`](/docs/reference/schemas#userlookupresponsepayload)
 
 <sub>Contract authored from `app/api/v1/users/search/route.ts` (confidence: high).</sub>

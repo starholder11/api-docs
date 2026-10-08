@@ -197,7 +197,7 @@ description: "2 operations tagged world.gaps."
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_gaps_visibility_post`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessGapCoordinates`; world policy `externalAgentAccessEnabled` must be on (checked for `external_agent`); mutation class `bounty_write`.
+- `world_gaps_visibility_post`: callers `human`, `external_agent`; scopes `world:write`; capability `canAccessGapCoordinates`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); mutation class `bounty_write`.
 
 **Parameters**
 

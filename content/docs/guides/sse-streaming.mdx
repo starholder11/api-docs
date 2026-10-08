@@ -13,7 +13,7 @@ A podcast agent listens to the stream, captures the prose and epistemic signals,
 
 None of these products need to parse natural language or reconstruct structure from chat output. The stream delivers typed, machine-readable events that separate content from structure. Your application decides which parts it needs.
 
-Four operations stream. Each one's events are listed in its `x-starholder-sse` extension in the [OpenAPI document](/docs/reference):
+Five operations stream. Each one's events are listed in its `x-starholder-sse` extension in the [OpenAPI document](/docs/reference):
 
 | Operation | What streams | Resume |
 | --- | --- | --- |
@@ -21,6 +21,7 @@ Four operations stream. Each one's events are listed in its `x-starholder-sse` e
 | [`POST /api/v1/chat/rooms/{chatRoomId}/continue`](/docs/reference/chat#chat_room_continue_post) | One room turn, to the caller who posted it, with `Accept: text/event-stream` | none; follow it on the room feed stream |
 | [`GET /api/v1/chat/rooms/{chatRoomId}/feed`](/docs/reference/chat#chat_room_feed_get) | Everything that happens in a room, including every reply as it streams, with `Accept: text/event-stream` | `Last-Event-ID` |
 | [`POST /api/v1/chat/rooms/{chatRoomId}/addons`](/docs/reference/chat#chat_room_addons_huelva_ask_post) | A private-lane ask, with `Accept: text/event-stream` | none |
+| [`POST /api/v1/huelva`](/docs/reference/huelva#huelva_ask_or_followthrough) | An ask to Huelva outside a room, with `Accept: text/event-stream` | none |
 
 ---
 
@@ -31,7 +32,7 @@ GET /api/v1/world/{worldId}/stream
 X-Api-Key: <apiKey>        (or Authorization: Bearer <apiKey>)
 ```
 
-**Requirements:** the `world:read` scope, the `canQuery` capability, and, for external agents, the world's `externalAgentReadEnabled` policy.
+**Requirements:** the `world:read` scope, the `canQuery` capability, and, for external agents, read access to the world (`externalAgentReadEnabled`: you own it, its read policy is public, or you are a member).
 
 > **Currently switched off.** The hosted platform has this stream disabled: every request answers `503` with error code `external_sse_disabled`, before credentials are checked. Until it is enabled, read a turn from the response of [`execute`](/docs/reference/world-execution#world_execute_sync) or [`consult`](/docs/reference/world-execution#world_consult_sync), fetch its [snapshot](/docs/reference/world-turns#world_turn_surface_get), or follow a room turn on a [room stream](#room-streams).
 
@@ -154,6 +155,10 @@ curl -N -H "Accept: text/event-stream" -H "X-Api-Key: $API_KEY" -H "Last-Event-I
 ### A private-lane ask
 
 A private-lane ask (`POST /api/v1/chat/rooms/{chatRoomId}/addons`, which needs the room link **and** `X-Api-Key`) streams `open`, then `ping` every 10 seconds and advisory `progress`, and ends with `settled`. `settled` carries the HTTP status and body the non-streaming call would have returned. Because the stream opens before validation, even a `401` arrives inside `settled` on an HTTP `200`.
+
+### An ask to Huelva outside a room
+
+An ask on `POST /api/v1/huelva` streams the same events: `open`, `ping` every 10 seconds, advisory `progress`, and `settled` with the status and body the non-streaming call would have returned. Unlike the private lane, it answers before the stream opens whenever the request is not admitted: an invalid body (`400`), a missing or invalid key (`401`), a missing scope (`403`), a world your key's owner cannot read (`404`), a missing `x-origin-system` header (`422`), or an exhausted quota (`429`) each come back as a plain JSON response with that status. Once the stream opens, every outcome arrives inside `settled`, including a run that exceeds its 770-second budget (`504`, `huelva_ask_run_budget_exhausted`).
 
 ---
 

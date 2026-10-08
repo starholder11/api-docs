@@ -11,11 +11,11 @@ description: "2 operations tagged world.config."
 
 **Get the owner's world settings surface and current config hash.** Owner-only read of the world config management surface: the current configHash (needed as baseConfigHash for PATCH), the list of editable JSON-pointer paths, the policy bundle, and public directory settings. Response is marked Cache-Control: no-store.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_config_get`: callers `human`; world role `owner` or higher (humans); mutation class `none`.
+- `world_config_get`: callers `human`, `external_agent`; scopes `world:read`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); world role `owner` or higher (humans); mutation class `none`.
 
 **Parameters**
 
@@ -92,7 +92,7 @@ description: "2 operations tagged world.config."
   }
   ```
 
-- **404**: ERR_NOT_FOUND.
+- **404**: ERR_NOT_FOUND. Also ERR_WORLD_POLICY_DENIED when the world's policy does not admit external agents. Error codes: `ERR_WORLD_POLICY_DENIED`.
 
   `application/json`
 
@@ -238,11 +238,11 @@ description: "2 operations tagged world.config."
 
 **Apply a JSON Patch to the world config with optimistic concurrency.** Owner-only. Applies RFC 6902 JSON Patch operations to the world config through the canonical config mutation service, which validates that only editable paths are touched, writes the new config, refreshes the registry mirror and public directory entry, and records HAM evidence. baseConfigHash must equal the current config hash (from GET config), otherwise 409; after success the hash changes, so a blind retry of the same patch returns 409. Response is Cache-Control: no-store.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `world_config_patch`: callers `human`; world role `owner` or higher (humans); mutation class `none`.
+- `world_config_patch`: callers `human`, `external_agent`; scopes `world:write`; world policy `externalAgentAccessEnabled`: the caller owns the world (checked for `external_agent`); world role `owner` or higher (humans); mutation class `none`.
 
 **Parameters**
 
@@ -398,7 +398,7 @@ description: "2 operations tagged world.config."
   }
   ```
 
-- **404**: ERR_CONFIG_WORLD_UNKNOWN.
+- **404**: ERR_CONFIG_WORLD_UNKNOWN. Also ERR_WORLD_POLICY_DENIED when the world's policy does not admit external agents. Error codes: `ERR_WORLD_POLICY_DENIED`.
 
   `application/json`
 

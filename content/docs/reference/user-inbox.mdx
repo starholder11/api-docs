@@ -11,11 +11,11 @@ description: "4 operations tagged user-inbox."
 
 **List the caller's inbox messages, newest first.** Returns one page of the caller's inbox messages (first-contact requests, room invites, world invites) ordered by createdAt DESC then messageHash DESC, with keyset pagination via an opaque cursor. Archived messages are excluded unless includeArchived=true; sourceKind optionally filters by message kind. Read-only; does not advance the open cursor.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `user_inbox_messages_get`: callers `human`; mutation class `none`.
+- `user_inbox_messages_get`: callers `human`, `external_agent`; scopes `account:read`; mutation class `none`.
 
 **Parameters**
 
@@ -123,11 +123,11 @@ description: "4 operations tagged user-inbox."
 
 **Archive one of the caller's inbox messages.** Archives the caller's inbox message identified by messageHash (sets archivedAt) and returns the refreshed inbox summary. Ownership is enforced by scoping to the caller; a message that does not exist or belongs to someone else returns 404. Idempotent: archiving an already archived message succeeds and keeps the original archivedAt. Does not change the underlying invite/request state.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `user_inbox_archive_post`: callers `human`; mutation class `none`.
+- `user_inbox_archive_post`: callers `human`, `external_agent`; scopes `account:write`; mutation class `none`.
 
 **Parameters**
 
@@ -264,13 +264,13 @@ description: "4 operations tagged user-inbox."
 
 `POST /api/v1/user-inbox/open`
 
-**Mark the caller's inbox as opened (advance the seen cursor).** Advances the caller's last-seen cursor to the newest non-archived message, resolved server-side inside one transaction, and updates lastOpenedAt; returns the refreshed summary. The cursor is monotonic (never moves backward), so repeated calls are safe. The body must be valid JSON; topMessageHash is advisory and ignored. May also upsert the caller's HAM user mirror from session headers.
+**Mark the caller's inbox as opened (advance the seen cursor).** Advances the caller's last-seen cursor to the newest non-archived message, resolved server-side inside one transaction, and updates lastOpenedAt; returns the refreshed summary. The cursor is monotonic (never moves backward), so repeated calls are safe. The body must be valid JSON; topMessageHash is advisory and ignored. When the caller's HAM user mirror row is missing, it is restored from the account's user registry record first; an account with no registry record is created from a signed-in session's sign-in claims, and for an API key it is ERR_ACCOUNT_RECORD_MISSING.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `user_inbox_open_post`: callers `human`; mutation class `none`.
+- `user_inbox_open_post`: callers `human`, `external_agent`; scopes `account:write`; mutation class `none`.
 
 **Request body** (`application/json`, required)
 
@@ -361,18 +361,49 @@ description: "4 operations tagged user-inbox."
   }
   ```
 
-- **500**: Internal error (transaction rolled back).
+- **500**: Internal error (transaction rolled back), or ERR_ACCOUNT_RECORD_MISSING: the API key's owner has no HAM user record. Opening the inbox once while signed in to Starholder creates it.
 
   `application/json`
 
   ```json
   {
-    "type": "object",
-    "properties": {
-      "error": {
-        "const": "Internal server error"
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "error": {
+            "const": "Internal server error"
+          }
+        }
+      },
+      {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "properties": {
+              "code": {
+                "const": "ERR_ACCOUNT_RECORD_MISSING"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "const": false
+              }
+            }
+          }
+        }
       }
-    }
+    ]
   }
   ```
 
@@ -386,11 +417,11 @@ description: "4 operations tagged user-inbox."
 
 **Get the caller's inbox counters and cursor.** Returns the caller's recipient-global inbox summary: count of non-archived messages, count of messages newer than the caller's last-seen cursor (all visible messages if the inbox was never opened), the newest active message hash/timestamp, and the current last-seen cursor. User-scoped; no world or room parameters. Read-only.
 
-**Credentials.** Any one of: browser session. Accepts a signed-in session. An API key answers 403 ERR_AUTH_FORBIDDEN. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
+**Credentials.** Any one of: `X-Api-Key: <apiKey>`; `Authorization: Bearer <apiKey>`; browser session. Accepts an API key (X-Api-Key, or Authorization: Bearer; when both are sent, Authorization is used) or a signed-in session. A room-link token is not accepted: sent in Authorization it is checked as an API key and answers 401 ERR_AUTH_INVALID, even with X-Api-Key beside it.
 
 **Authorization** (`ROUTE_AUTH_POLICIES`; `GET /api/v1/account` lists the operations your credential passes):
 
-- `user_inbox_summary_get`: callers `human`; mutation class `none`.
+- `user_inbox_summary_get`: callers `human`, `external_agent`; scopes `account:read`; mutation class `none`.
 
 **Responses**
 
